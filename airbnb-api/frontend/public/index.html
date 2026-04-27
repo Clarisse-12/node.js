@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Airbnb API Playground</title>
+    <link rel="stylesheet" href="/app/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+
+    <main class="shell">
+      <section id="auth-view" class="auth-wrap">
+        <header class="hero">
+          <p class="eyebrow">Airbnb API App</p>
+          <h1>Login Or Signup</h1>
+          <p class="subtitle">Choose role as Admin or User. Admin can post listings. User can book listings.</p>
+        </header>
+
+        <article class="panel auth-panel">
+          <div class="auth-tabs">
+            <button id="show-login-btn" class="tab active" type="button">Login</button>
+            <button id="show-signup-btn" class="tab" type="button">Signup</button>
+          </div>
+
+          <form id="login-form" class="auth-form">
+            <label>Email<input type="email" name="email" required /></label>
+            <label>Login As
+              <select name="role" required>
+                <option value="ADMIN">Admin</option>
+                <option value="USER">User</option>
+              </select>
+            </label>
+            <button type="submit">Login</button>
+          </form>
+
+          <form id="signup-form" class="auth-form hidden">
+            <label>Name<input name="name" required /></label>
+            <label>Email<input type="email" name="email" required /></label>
+            <label>Username<input name="username" required /></label>
+            <label>Phone<input name="phone" placeholder="+1-555-0101" required /></label>
+            <label>Signup As
+              <select name="role" required>
+                <option value="ADMIN">Admin</option>
+                <option value="USER">User</option>
+              </select>
+            </label>
+            <button type="submit">Create Account</button>
+          </form>
+
+          <p class="hint">This frontend uses your existing backend users table as account source.</p>
+        </article>
+      </section>
+
+      <section id="app-view" class="hidden">
+        <header class="app-header panel">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h2 id="welcome-text">Welcome</h2>
+          </div>
+          <div class="row">
+            <button id="refresh-data-btn" type="button">Refresh Data</button>
+            <button id="logout-btn" type="button">Logout</button>
+          </div>
+        </header>
+
+        <section class="panel">
+          <h3>Available Listings</h3>
+          <div id="listings-grid" class="listings-grid"></div>
+        </section>
+
+        <section id="admin-section" class="panel hidden">
+          <h3>Admin: Post Listing</h3>
+          <form id="create-listing-form">
+            <input type="hidden" name="listingId" value="" />
+            <div class="form-grid">
+              <label>Title<input name="title" required /></label>
+              <label>Location<input name="location" required /></label>
+              <label>Price Per Night<input type="number" min="1" step="0.01" name="pricePerNight" required /></label>
+              <label>Guests<input type="number" min="1" name="guests" required /></label>
+              <label>Type
+                <select name="type" required>
+                  <option value="APARTMENT">APARTMENT</option>
+                  <option value="HOUSE">HOUSE</option>
+                  <option value="VILLA">VILLA</option>
+                  <option value="CABIN">CABIN</option>
+                </select>
+              </label>
+              <label>Amenities (comma separated)<input name="amenities" placeholder="WiFi, Kitchen" required /></label>
+            </div>
+            <label>Description<textarea name="description" rows="3" required></textarea></label>
+            <div class="row">
+              <button type="submit" id="listing-submit-btn">Post Listing</button>
+              <button type="button" id="cancel-edit-btn" class="secondary hidden">Cancel Edit</button>
+            </div>
+          </form>
+          <h4>Your Listings</h4>
+          <div id="my-listings" class="listings-grid"></div>
+          <h4>All Bookings</h4>
+          <div id="admin-bookings" class="listings-grid"></div>
+        </section>
+
+        <section id="user-section" class="panel hidden">
+          <h3>User: Book Listing</h3>
+          <form id="create-booking-form">
+            <div class="form-grid">
+              <label>Listing
+                <select name="listingId" id="booking-listing-select" required></select>
+              </label>
+              <label>Check In<input type="date" name="checkIn" required /></label>
+              <label>Check Out<input type="date" name="checkOut" required /></label>
+            </div>
+            <button type="submit">Create Booking</button>
+          </form>
+          <h4>My Bookings</h4>
+          <div id="my-bookings" class="listings-grid"></div>
+        </section>
+
+        <section id="activity-section" class="panel">
+          <h3>Activity Log</h3>
+          <pre id="log-output" class="log"></pre>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/app/assets/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,249 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteListing = exports.updateListing = exports.createListing = exports.getListingById = exports.getAllListings = void 0;
+const client_1 = require("@prisma/client");
+const prisma_1 = __importDefault(require("../config/prisma"));
+const cloudinary_js_1 = require("../config/cloudinary.js");
+const VALID_SORT_FIELDS = ["pricePerNight", "createdAt"];
+const isListingType = (value) => {
+    return Object.values(client_1.ListingType).includes(value);
+};
+const parsePositiveInt = (value, fallback) => {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        return fallback;
+    }
+    return parsed;
+};
+const getAllListings = async (req, res, next) => {
+    try {
+        const { location, type, maxPrice, page, limit, sortBy, order } = req.query;
+        const pageNumber = parsePositiveInt(page, 1);
+        const limitNumber = parsePositiveInt(limit, 10);
+        const skip = (pageNumber - 1) * limitNumber;
+        const where = {};
+        if (location) {
+            where.location = {
+                contains: String(location),
+                mode: "insensitive"
+            };
+        }
+        if (type) {
+            const enumType = String(type).toUpperCase();
+            if (!isListingType(enumType)) {
+                res.status(400).json({ message: "Invalid listing type" });
+                return;
+            }
+            where.type = enumType;
+        }
+        if (maxPrice !== undefined) {
+            const parsedMaxPrice = Number(maxPrice);
+            if (Number.isNaN(parsedMaxPrice) || parsedMaxPrice < 0) {
+                res.status(400).json({ message: "maxPrice must be a positive number" });
+                return;
+            }
+            where.pricePerNight = { lte: parsedMaxPrice };
+        }
+        const sortField = VALID_SORT_FIELDS.includes(sortBy)
+            ? sortBy
+            : "createdAt";
+        const sortOrder = order === "asc" ? "asc" : "desc";
+        const listings = await prisma_1.default.listing.findMany({
+            where,
+            skip,
+            take: limitNumber,
+            orderBy: {
+                [sortField]: sortOrder
+            },
+            select: {
+                id: true,
+                title: true,
+                location: true,
+                pricePerNight: true,
+                photos: {
+                    select: {
+                        id: true,
+                        url: true,
+                        publicId: true
+                    }
+                },
+                host: {
+                    select: {
+                        name: true
+                    }
+                }
+            }
+        });
+        res.json({
+            page: pageNumber,
+            limit: limitNumber,
+            data: listings.map((listing) => ({
+                ...listing,
+                photos: listing.photos.map((photo) => ({
+                    ...photo,
+                    optimizedUrl: (0, cloudinary_js_1.getOptimizedUrl)(photo.url, 600, 400)
+                }))
+            }))
+        });
+    }
+    catch (error) {
+        next({ error, operation: "getAllListings" });
+    }
+};
+exports.getAllListings = getAllListings;
+const getListingById = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            res.status(400).json({ message: "Invalid listing id" });
+            return;
+        }
+        const listing = await prisma_1.default.listing.findUnique({
+            where: { id },
+            include: {
+                host: true,
+                bookings: true,
+                photos: true
+            }
+        });
+        if (!listing) {
+            res.status(404).json({ message: "Listing not found" });
+            return;
+        }
+        res.json({
+            ...listing,
+            photos: listing.photos.map((photo) => ({
+                ...photo,
+                optimizedUrl: (0, cloudinary_js_1.getOptimizedUrl)(photo.url, 900, 600)
+            }))
+        });
+    }
+    catch (error) {
+        next({ error, operation: "getListingById" });
+    }
+};
+exports.getListingById = getListingById;
+const createListing = async (req, res, next) => {
+    try {
+        const { title, description, location, pricePerNight, guests, type, amenities, rating } = req.body;
+        if (!title ||
+            !description ||
+            !location ||
+            pricePerNight === undefined ||
+            guests === undefined ||
+            type === undefined ||
+            !Array.isArray(amenities)) {
+            res.status(400).json({
+                message: "Missing required fields: title, description, location, pricePerNight, guests, type, amenities"
+            });
+            return;
+        }
+        if (!isListingType(type)) {
+            res.status(400).json({ message: "Invalid listing type" });
+            return;
+        }
+        if (!req.userId) {
+            res.status(401).json({ message: "Invalid or expired token" });
+            return;
+        }
+        const listing = await prisma_1.default.listing.create({
+            data: {
+                title,
+                description,
+                location,
+                pricePerNight: Number(pricePerNight),
+                guests: Number(guests),
+                type,
+                amenities,
+                rating,
+                hostId: req.userId
+            }
+        });
+        res.status(201).json(listing);
+    }
+    catch (error) {
+        next({ error, operation: "createListing" });
+    }
+};
+exports.createListing = createListing;
+const updateListing = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            res.status(400).json({ message: "Invalid listing id" });
+            return;
+        }
+        const { title, description, location, pricePerNight, guests, type, amenities, rating, hostId } = req.body;
+        if (type !== undefined && !isListingType(type)) {
+            res.status(400).json({ message: "Invalid listing type" });
+            return;
+        }
+        if (amenities !== undefined && !Array.isArray(amenities)) {
+            res.status(400).json({ message: "Amenities must be an array of strings" });
+            return;
+        }
+        const existing = await prisma_1.default.listing.findFirst({ where: { id } });
+        if (!existing) {
+            res.status(404).json({ message: "Listing not found" });
+            return;
+        }
+        if (!req.userId) {
+            res.status(401).json({ message: "Invalid or expired token" });
+            return;
+        }
+        if (existing.hostId !== req.userId) {
+            res.status(403).json({ message: "You can only edit your own listings" });
+            return;
+        }
+        const listing = await prisma_1.default.listing.update({
+            where: { id },
+            data: {
+                title,
+                description,
+                location,
+                pricePerNight,
+                guests,
+                type,
+                amenities,
+                rating,
+                hostId: existing.hostId
+            }
+        });
+        res.json(listing);
+    }
+    catch (error) {
+        next({ error, operation: "updateListing" });
+    }
+};
+exports.updateListing = updateListing;
+const deleteListing = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            res.status(400).json({ message: "Invalid listing id" });
+            return;
+        }
+        const existing = await prisma_1.default.listing.findFirst({ where: { id } });
+        if (!existing) {
+            res.status(404).json({ message: "Listing not found" });
+            return;
+        }
+        if (!req.userId) {
+            res.status(401).json({ message: "Invalid or expired token" });
+            return;
+        }
+        if (existing.hostId !== req.userId) {
+            res.status(403).json({ message: "You can only delete your own listings" });
+            return;
+        }
+        const deleted = await prisma_1.default.listing.delete({ where: { id } });
+        res.json(deleted);
+    }
+    catch (error) {
+        next({ error, operation: "deleteListing" });
+    }
+};
+exports.deleteListing = deleteListing;

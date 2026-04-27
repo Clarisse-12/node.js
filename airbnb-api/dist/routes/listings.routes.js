@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const listings_controller_1 = require("../controllers/listings.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const listingsRouter = (0, express_1.Router)();
+listingsRouter.get("/", listings_controller_1.getAllListings);
+listingsRouter.get("/:id", listings_controller_1.getListingById);
+listingsRouter.post("/", auth_middleware_1.authenticate, auth_middleware_1.requireHost, listings_controller_1.createListing);
+listingsRouter.put("/:id", auth_middleware_1.authenticate, listings_controller_1.updateListing);
+listingsRouter.delete("/:id", auth_middleware_1.authenticate, listings_controller_1.deleteListing);
+exports.default = listingsRouter;

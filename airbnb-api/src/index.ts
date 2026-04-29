@@ -8,11 +8,13 @@ import bookingsRouter from "./routes/bookings.routes";
 import listingsRouter from "./routes/listings.routes";
 import usersRouter from "./routes/users.routes";
 import uploadRouter from "./routes/upload.routes.js";
+import { setupSwagger } from "./config/swagger.js";
 
 const app = express();
 const PORT = Number(process.env["PORT"] ?? 3000);
 
 app.use(express.json());
+setupSwagger(app);
 
 const frontendPublicPath = path.join(process.cwd(), "frontend", "public");
 const frontendDistPath = path.join(process.cwd(), "frontend", "dist");

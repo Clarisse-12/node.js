@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteListing = exports.updateListing = exports.createListing = exports.getListingById = exports.getAllListings = void 0;
+exports.deleteListing = exports.updateListing = exports.createListing = exports.getListingStats = exports.getListingById = exports.getAllListings = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const cloudinary_js_1 = require("../config/cloudinary.js");
@@ -126,6 +126,26 @@ const getListingById = async (req, res, next) => {
     }
 };
 exports.getListingById = getListingById;
+const getListingStats = async (_req, res, next) => {
+    try {
+        const stats = await prisma_1.default.$queryRaw `
+      SELECT
+        location,
+        COUNT(*)::int AS total,
+        ROUND(AVG("pricePerNight")::numeric, 2) AS avg_price,
+        MIN("pricePerNight") AS min_price,
+        MAX("pricePerNight") AS max_price
+      FROM "Listing"
+      GROUP BY location
+      ORDER BY total DESC
+    `;
+        res.json(stats);
+    }
+    catch (error) {
+        next({ error, operation: "getListingStats" });
+    }
+};
+exports.getListingStats = getListingStats;
 const createListing = async (req, res, next) => {
     try {
         const { title, description, location, pricePerNight, guests, type, amenities, rating } = req.body;

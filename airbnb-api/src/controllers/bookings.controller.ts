@@ -167,35 +167,69 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
       return;
     }
 
-    const conflict = await prisma.booking.findFirst({
-      where: {
-        listingId: requestedListingId,
-        status: { in: activeBookingStatuses },
-        checkIn: { lt: checkOutDate },
-        checkOut: { gt: checkInDate }
-      }
-    });
+    // const conflict = await prisma.booking.findFirst({
+    //   where: {
+    //     listingId: requestedListingId,
+    //     status: { in: activeBookingStatuses },
+    //     checkIn: { lt: checkOutDate },
+    //     checkOut: { gt: checkInDate }
+    //   }
+    // });
 
-    if (conflict) {
-      res.status(409).json({ message: "Booking conflict for the selected dates" });
-      return;
-    }
+    // if (conflict) {
+    //   res.status(409).json({ message: "Booking conflict for the selected dates" });
+    //   return;
+    // }
 
     const dayCount = Math.round((checkOutDate.getTime() - checkInDate.getTime()) / millisecondsPerDay);
     const totalPrice = dayCount * listing.pricePerNight;
 
-    const booking = await prisma.booking.create({
-      data: {
-        guestId: req.userId,
-        listingId: requestedListingId,
-        checkIn: checkInDate,
-        checkOut: checkOutDate,
-        totalPrice,
-        status: BookingStatus.PENDING
+    // const booking = await prisma.booking.create({
+    //   data: {
+    //     guestId: req.userId,
+    //     listingId: requestedListingId,
+    //     checkIn: checkInDate,
+    //     checkOut: checkOutDate,
+    //     totalPrice,
+    //     status: BookingStatus.PENDING
+    //   }
+    // });
+
+    // res.status(201).json(booking);
+
+   
+
+    const newBooking = await prisma.$transaction(async (tx) => {
+      const conflict = await tx.booking.findFirst({
+        where: {
+          listingId: requestedListingId,
+          status: { in: activeBookingStatuses },
+          checkIn: { lt: checkOutDate },
+          checkOut: { gt: checkInDate }
+        }
+      });
+
+      if (conflict) {
+        throw new Error("BOOKING_CONFLICT");
       }
+
+      return tx.booking.create({
+        data: {
+          listingId: requestedListingId,
+          guestId: Number(req.userId),
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          totalPrice,
+          status: BookingStatus.PENDING
+        },
+        include: {
+          guest: true,
+          listing: true
+        }
+      });
     });
 
-    res.status(201).json(booking);
+    res.status(201).json(newBooking);
 
     const guest = await prisma.user.findUnique({
       where: { id: req.userId },
@@ -225,6 +259,11 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
       });
     }
   } catch (error) {
+    if (error instanceof Error && error.message === "BOOKING_CONFLICT") {
+      res.status(409).json({ message: "Booking conflict for the selected dates" });
+      return;
+    }
+
     next({ error, operation: "createBooking" });
   }
 };

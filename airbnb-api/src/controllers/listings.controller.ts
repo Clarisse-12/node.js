@@ -134,6 +134,34 @@ export const getListingById = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+type ListingStatsRow = {
+  location: string;
+  total: number;
+  avg_price: string;
+  min_price: number;
+  max_price: number;
+};
+
+export const getListingStats = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const stats = await prisma.$queryRaw<ListingStatsRow[]>`
+      SELECT
+        location,
+        COUNT(*)::int AS total,
+        ROUND(AVG("pricePerNight")::numeric, 2) AS avg_price,
+        MIN("pricePerNight") AS min_price,
+        MAX("pricePerNight") AS max_price
+      FROM "Listing"
+      GROUP BY location
+      ORDER BY total DESC
+    `;
+
+    res.json(stats);
+  } catch (error) {
+    next({ error, operation: "getListingStats" });
+  }
+};
+
 export const createListing = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { title, description, location, pricePerNight, guests, type, amenities, rating } = req.body as {

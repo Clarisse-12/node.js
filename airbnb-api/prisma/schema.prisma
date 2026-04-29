@@ -43,6 +43,9 @@ model Listing {
 
   @@index([location])
   @@index([pricePerNight])
+  @@index([type])
+  @@index([hostId]) 
+  @@index([type, location])
 }
 
 model User {
@@ -76,11 +79,14 @@ model Booking {
   id         Int           @id @default(autoincrement())
   checkIn    DateTime
   checkOut   DateTime
-  totalPrice Float
+  totalPrice Float?
   status     BookingStatus @default(PENDING)
   createdAt  DateTime      @default(now())
   guestId    Int
   listingId  Int
   guest      User          @relation(fields: [guestId], references: [id], onDelete: Cascade)
   listing    Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  @@index([guestId])
+  @@index([listingId])
+  @@index([listingId, checkIn, checkOut])
 }

@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_routes_js_1 = __importDefault(require("./auth.routes.js"));
+const users_routes_js_1 = __importDefault(require("./users.routes.js"));
+const listings_routes_js_1 = __importDefault(require("./listings.routes.js"));
+const bookings_routes_js_1 = __importDefault(require("./bookings.routes.js"));
+const reviews_routes_js_1 = __importDefault(require("./reviews.routes.js"));
+const upload_routes_js_1 = __importDefault(require("./upload.routes.js"));
+const v1Router = (0, express_1.Router)();
+v1Router.use("/auth", auth_routes_js_1.default);
+v1Router.use("/users", users_routes_js_1.default);
+v1Router.use("/listings", listings_routes_js_1.default);
+v1Router.use("/bookings", bookings_routes_js_1.default);
+v1Router.use("/", reviews_routes_js_1.default);
+v1Router.use("/", upload_routes_js_1.default);
+exports.default = v1Router;

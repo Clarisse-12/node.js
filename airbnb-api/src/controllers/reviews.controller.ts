@@ -33,7 +33,7 @@ export const createReview = async (req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    const listing = await prisma.listing.findUnique({ where: { id: listingId } });
+    const listing = await prisma.listing.findUnique({ where: { id: String(listingId) } });
     if (!listing) {
       res.status(404).json({ message: "Listing not found" });
       return;

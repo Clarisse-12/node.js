@@ -9,6 +9,7 @@ exports.uploadListingPhotos = uploadListingPhotos;
 exports.deleteListingPhoto = deleteListingPhoto;
 const cloudinary_js_1 = require("../config/cloudinary.js");
 const prisma_js_1 = __importDefault(require("../config/prisma.js"));
+const ids_1 = require("../utils/ids");
 const sanitizeUser = (user) => {
     const safeUser = { ...user };
     delete safeUser.password;
@@ -16,16 +17,10 @@ const sanitizeUser = (user) => {
     delete safeUser.resetTokenExpiry;
     return safeUser;
 };
-const parseId = (value) => {
-    if (Array.isArray(value)) {
-        return Number(value[0]);
-    }
-    return Number(value);
-};
 async function uploadAvatar(req, res, next) {
     try {
-        const id = parseId(req.params["id"]);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params["id"];
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -65,8 +60,8 @@ async function uploadAvatar(req, res, next) {
 }
 async function deleteAvatar(req, res, next) {
     try {
-        const id = parseId(req.params["id"]);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params["id"];
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -103,8 +98,8 @@ async function deleteAvatar(req, res, next) {
 }
 async function uploadListingPhotos(req, res, next) {
     try {
-        const id = parseId(req.params["id"]);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params["id"];
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid listing id" });
             return;
         }
@@ -167,9 +162,9 @@ async function uploadListingPhotos(req, res, next) {
 }
 async function deleteListingPhoto(req, res, next) {
     try {
-        const id = parseId(req.params["id"]);
-        const photoId = parseId(req.params["photoId"]);
-        if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(photoId) || photoId <= 0) {
+        const id = req.params["id"];
+        const photoId = req.params["photoId"];
+        if (!(0, ids_1.isUuid)(id) || !(0, ids_1.isUuid)(photoId)) {
             res.status(400).json({ message: "Invalid id parameter" });
             return;
         }

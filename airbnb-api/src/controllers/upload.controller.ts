@@ -2,6 +2,7 @@ import type { NextFunction, Response } from "express";
 import { deleteFromCloudinary, getOptimizedUrl, uploadToCloudinary } from "../config/cloudinary.js";
 import prisma from "../config/prisma.js";
 import { AuthRequest } from "../middlewares/auth.middleware.js";
+import { isUuid } from "../utils/ids";
 
 const sanitizeUser = <T extends Record<string, unknown>>(user: T): T => {
   const safeUser = { ...user } as Record<string, unknown>;
@@ -11,19 +12,11 @@ const sanitizeUser = <T extends Record<string, unknown>>(user: T): T => {
   return safeUser as T;
 };
 
-const parseId = (value: unknown): number => {
-  if (Array.isArray(value)) {
-    return Number(value[0]);
-  }
-
-  return Number(value);
-};
-
 export async function uploadAvatar(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = parseId(req.params["id"]);
+    const id = req.params["id"];
 
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -71,9 +64,9 @@ export async function uploadAvatar(req: AuthRequest, res: Response, next: NextFu
 
 export async function deleteAvatar(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = parseId(req.params["id"]);
+    const id = req.params["id"];
 
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -117,9 +110,9 @@ export async function deleteAvatar(req: AuthRequest, res: Response, next: NextFu
 
 export async function uploadListingPhotos(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = parseId(req.params["id"]);
+    const id = req.params["id"];
 
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -193,10 +186,10 @@ export async function uploadListingPhotos(req: AuthRequest, res: Response, next:
 
 export async function deleteListingPhoto(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = parseId(req.params["id"]);
-    const photoId = parseId(req.params["photoId"]);
+    const id = req.params["id"];
+    const photoId = req.params["photoId"];
 
-    if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(photoId) || photoId <= 0) {
+    if (!isUuid(id) || !isUuid(photoId)) {
       res.status(400).json({ message: "Invalid id parameter" });
       return;
     }

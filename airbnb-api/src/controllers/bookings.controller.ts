@@ -5,6 +5,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import { sendEmail } from "../config/email.js";
 import { bookingConfirmationEmail } from "../templates/emails.js";
 import { invalidateCache } from "../config/cache";
+import { isUuid } from "../utils/ids";
 
 const isBookingStatus = (value: unknown): value is BookingStatus => {
   return Object.values(BookingStatus).includes(value as BookingStatus);
@@ -109,8 +110,8 @@ export const getAllBookings = async (
 
 export const getBookingById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid booking id" });
       return;
     }
@@ -137,7 +138,7 @@ export const getBookingById = async (req: Request, res: Response, next: NextFunc
 export const createBooking = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { listingId, checkIn, checkOut } = req.body as {
-      listingId?: number;
+      listingId?: string;
       checkIn?: string;
       checkOut?: string;
     };
@@ -147,7 +148,8 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
       return;
     }
 
-    if (!req.userId) {
+    const guestId = req.userId;
+    if (!guestId) {
       res.status(401).json({ message: "Invalid or expired token" });
       return;
     }
@@ -157,8 +159,8 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
       return;
     }
 
-    const requestedListingId = Number(listingId);
-    if (!Number.isInteger(requestedListingId) || requestedListingId <= 0) {
+    const requestedListingId = listingId;
+    if (!isUuid(requestedListingId)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -235,7 +237,7 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
       return tx.booking.create({
         data: {
           listingId: requestedListingId,
-          guestId: Number(req.userId),
+          guestId,
           checkIn: checkInDate,
           checkOut: checkOutDate,
           totalPrice,
@@ -249,8 +251,6 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
     });
 
     res.status(201).json(newBooking);
-
-    invalidateCache("stats");
 
     const guest = await prisma.user.findUnique({
       where: { id: req.userId },
@@ -295,8 +295,8 @@ export const updateBookingStatus = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid booking id" });
       return;
     }
@@ -326,8 +326,8 @@ export const updateBookingStatus = async (
 
 export const deleteBooking = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid booking id" });
       return;
     }
@@ -373,8 +373,6 @@ export const deleteBooking = async (req: AuthRequest, res: Response, next: NextF
 
     res.json(booking);
 
-    invalidateCache("stats");
-
     void sendEmail(
       booking.guest.email,
       "Your booking has been cancelled",
@@ -397,8 +395,8 @@ export const deleteBooking = async (req: AuthRequest, res: Response, next: NextF
 
 export const getUserBookings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = Number(req.params.userId);
-    if (!Number.isInteger(userId) || userId <= 0) {
+    const userId = req.params.userId;
+    if (!isUuid(userId)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }

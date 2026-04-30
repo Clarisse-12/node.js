@@ -31,17 +31,26 @@ const errorHandler = (err, _req, res, _next) => {
             return;
         }
     }
-    if (actualError instanceof Error) {
+    if (actualError === undefined) {
+        console.error(`Unhandled operation failed (${operation}): error is undefined`);
+    }
+    else if (actualError instanceof Error) {
         console.error("Unhandled operation failed", {
             operation,
-            message: actualError.message
+            message: actualError.message,
+            stack: actualError.stack
         });
     }
     else {
-        console.error("Unhandled operation failed", {
-            operation,
-            error: actualError
-        });
+        // Log non-Error payloads as JSON for clarity
+        let payloadStr;
+        try {
+            payloadStr = JSON.stringify(actualError);
+        }
+        catch {
+            payloadStr = String(actualError);
+        }
+        console.error(`Unhandled operation failed (${operation}): ${payloadStr}`);
     }
     res.status(500).json({ message: "Something went wrong" });
 };

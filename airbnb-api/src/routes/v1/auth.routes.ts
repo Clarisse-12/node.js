@@ -6,8 +6,8 @@ import {
   login,
   register,
   resetPassword
-} from "../controllers/auth.controller";
-import { authenticate } from "../middlewares/auth.middleware";
+} from "../../controllers/auth.controller";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 /**
  * @swagger

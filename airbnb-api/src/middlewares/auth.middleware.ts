@@ -4,7 +4,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 type Role = "HOST" | "GUEST";
 
 export interface AuthRequest extends Request {
-  userId?: number;
+  userId?: string;
   role?: string;
 }
 
@@ -33,7 +33,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       return;
     }
 
-    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & { userId?: number; role?: Role };
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & { userId?: string; role?: Role };
     if (!decoded.userId || !decoded.role) {
       res.status(401).json({ message: "Invalid or expired token" });
       return;

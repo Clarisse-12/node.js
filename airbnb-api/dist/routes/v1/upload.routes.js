@@ -1,13 +1,12 @@
-import { Router } from "express";
-import upload from "../config/multer.js";
-import {
-  deleteAvatar,
-  deleteListingPhoto,
-  uploadAvatar,
-  uploadListingPhotos
-} from "../controllers/upload.controller.js";
-import { authenticate } from "../middlewares/auth.middleware.js";
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const multer_js_1 = __importDefault(require("../../config/multer.js"));
+const upload_controller_js_1 = require("../../controllers/upload.controller.js");
+const auth_middleware_js_1 = require("../../middlewares/auth.middleware.js");
 /**
  * @swagger
  * /users/{id}/avatar:
@@ -196,13 +195,9 @@ import { authenticate } from "../middlewares/auth.middleware.js";
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-
-const uploadRouter = Router();
-
-uploadRouter.post("/users/:id/avatar", authenticate, upload.single("image"), uploadAvatar);
-uploadRouter.delete("/users/:id/avatar", authenticate, deleteAvatar);
-
-uploadRouter.post("/listings/:id/photos", authenticate, upload.array("photos", 5), uploadListingPhotos);
-uploadRouter.delete("/listings/:id/photos/:photoId", authenticate, deleteListingPhoto);
-
-export default uploadRouter;
+const uploadRouter = (0, express_1.Router)();
+uploadRouter.post("/users/:id/avatar", auth_middleware_js_1.authenticate, multer_js_1.default.single("image"), upload_controller_js_1.uploadAvatar);
+uploadRouter.delete("/users/:id/avatar", auth_middleware_js_1.authenticate, upload_controller_js_1.deleteAvatar);
+uploadRouter.post("/listings/:id/photos", auth_middleware_js_1.authenticate, multer_js_1.default.array("photos", 5), upload_controller_js_1.uploadListingPhotos);
+uploadRouter.delete("/listings/:id/photos/:photoId", auth_middleware_js_1.authenticate, upload_controller_js_1.deleteListingPhoto);
+exports.default = uploadRouter;

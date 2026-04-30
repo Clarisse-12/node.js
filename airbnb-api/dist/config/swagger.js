@@ -16,7 +16,7 @@ const options = {
         },
         servers: [
             {
-                url: "http://localhost:3000",
+                url: "http://localhost:3000/api/v1",
                 description: "Development server",
             },
         ],
@@ -35,18 +35,18 @@ const options = {
     },
     // Tell swagger-jsdoc where to find the JSDoc comments
     // It scans these files for @swagger annotations
-    apis: ["./src/routes/*.ts"],
+    apis: ["./src/routes/v1/*.ts"],
 };
 const swaggerSpec = (0, swagger_jsdoc_1.default)(options);
-// setupSwagger mounts the Swagger UI at /api-docs
+// setupSwagger mounts the Swagger UI at /api-docs 
 // Call this in index.ts after setting up middleware
 function setupSwagger(app) {
     // Serve the interactive Swagger UI
-    app.use("/api-docs", swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swaggerSpec));
+    app.use("/api/v1/api-docs", swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swaggerSpec));
     // Also expose the raw OpenAPI JSON spec
     // Useful for importing into Postman or generating client SDKs
-    app.get("/api-docs.json", (req, res) => {
+    app.get("/api/v1/api-docs.json", (req, res) => {
         res.json(swaggerSpec);
     });
-    console.log("Swagger docs available at http://localhost:3000/api-docs");
+    console.log("Swagger docs available at http://localhost:3000/api-docs and http://localhost:3000/api/v1/api-docs.json");
 }

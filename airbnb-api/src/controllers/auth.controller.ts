@@ -258,8 +258,8 @@ export const forgotPassword = async (req: AuthRequest, res: Response, next: Next
         }
       });
 
-      const baseUrl = process.env["API_URL"] || "http://localhost:3000";
-      resetLink = `${baseUrl}/auth/reset-password/${rawToken}`;
+      const baseUrl = (process.env["API_URL"] || "http://localhost:3000").replace(/\/$/, "");
+      resetLink = `${baseUrl}/api/v1/auth/reset-password/${rawToken}`;
     }
 
     res.status(200).json({ message: "If that email is registered, a reset link has been sent" });

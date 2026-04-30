@@ -2,6 +2,8 @@ import { NextFunction, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { Role } from "@prisma/client";
 import prisma from "../config/prisma";
+import { getCache, setCache, invalidateCache } from "../config/cache";
+import { isUuid } from "../utils/ids";
 
 const isValidRole = (value: unknown): value is Role => {
   return value === Role.HOST || value === Role.GUEST;
@@ -32,10 +34,42 @@ export const getAllUsers = async (_req: Request, res: Response, next: NextFuncti
   }
 };
 
+export const getUserStats = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const cacheKey = "users:stats";
+    const cached = getCache(cacheKey);
+    if (cached !== null) {
+      res.json(cached);
+      return;
+    }
+
+    const [totalUsers, byRole] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.groupBy({
+        by: ["role"],
+        _count: true
+      })
+    ]);
+
+    const stats = {
+      totalUsers,
+      byRole: byRole.map((entry) => ({
+        role: entry.role,
+        count: entry._count
+      }))
+    };
+
+    setCache(cacheKey, stats, 300);
+    res.json(stats);
+  } catch (error) {
+    next({ error, operation: "getUserStats" });
+  }
+};
+
 export const getUserById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -65,8 +99,8 @@ export const getUserById = async (req: Request, res: Response, next: NextFunctio
 
 export const getUserListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -86,8 +120,8 @@ export const getUserListings = async (req: Request, res: Response, next: NextFun
 
 export const getUserBookings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -160,6 +194,8 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
       }
     });
 
+    invalidateCache("users:stats");
+
     res.status(201).json(sanitizeUser(user));
   } catch (error) {
     next({ error, operation: "createUser" });
@@ -168,8 +204,8 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
 
 export const updateUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -212,6 +248,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       }
     });
 
+    invalidateCache("users:stats");
+
     res.json(sanitizeUser(user));
   } catch (error) {
     next({ error, operation: "updateUser" });
@@ -220,8 +258,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
 
 export const deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid user id" });
       return;
     }
@@ -233,6 +271,9 @@ export const deleteUser = async (req: Request, res: Response, next: NextFunction
     }
 
     const deleted = await prisma.user.delete({ where: { id } });
+
+    invalidateCache("users:stats");
+
     res.json(deleted);
   } catch (error) {
     next({ error, operation: "deleteUser" });

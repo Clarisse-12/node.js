@@ -8,7 +8,7 @@ const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const email_js_1 = require("../config/email.js");
 const emails_js_1 = require("../templates/emails.js");
-const cache_1 = require("../config/cache");
+const ids_1 = require("../utils/ids");
 const isBookingStatus = (value) => {
     return Object.values(client_1.BookingStatus).includes(value);
 };
@@ -93,8 +93,8 @@ const getAllBookings = async (req, res, next) => {
 exports.getAllBookings = getAllBookings;
 const getBookingById = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid booking id" });
             return;
         }
@@ -123,7 +123,8 @@ const createBooking = async (req, res, next) => {
             res.status(400).json({ message: "Missing required fields: listingId, checkIn, checkOut" });
             return;
         }
-        if (!req.userId) {
+        const guestId = req.userId;
+        if (!guestId) {
             res.status(401).json({ message: "Invalid or expired token" });
             return;
         }
@@ -131,8 +132,8 @@ const createBooking = async (req, res, next) => {
             res.status(400).json({ message: "checkIn and checkOut must be strings in YYYY-MM-DD format" });
             return;
         }
-        const requestedListingId = Number(listingId);
-        if (!Number.isInteger(requestedListingId) || requestedListingId <= 0) {
+        const requestedListingId = listingId;
+        if (!(0, ids_1.isUuid)(requestedListingId)) {
             res.status(400).json({ message: "Invalid listing id" });
             return;
         }
@@ -195,7 +196,7 @@ const createBooking = async (req, res, next) => {
             return tx.booking.create({
                 data: {
                     listingId: requestedListingId,
-                    guestId: Number(req.userId),
+                    guestId,
                     checkIn: checkInDate,
                     checkOut: checkOutDate,
                     totalPrice,
@@ -208,7 +209,6 @@ const createBooking = async (req, res, next) => {
             });
         });
         res.status(201).json(newBooking);
-        (0, cache_1.invalidateCache)("stats");
         const guest = await prisma_1.default.user.findUnique({
             where: { id: req.userId },
             select: {
@@ -236,8 +236,8 @@ const createBooking = async (req, res, next) => {
 exports.createBooking = createBooking;
 const updateBookingStatus = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid booking id" });
             return;
         }
@@ -264,8 +264,8 @@ const updateBookingStatus = async (req, res, next) => {
 exports.updateBookingStatus = updateBookingStatus;
 const deleteBooking = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid booking id" });
             return;
         }
@@ -304,7 +304,6 @@ const deleteBooking = async (req, res, next) => {
             }
         });
         res.json(booking);
-        (0, cache_1.invalidateCache)("stats");
         void (0, email_js_1.sendEmail)(booking.guest.email, "Your booking has been cancelled", bookingCancellationTemplate(booking.guest.name, booking.listing.title, formatDate(existing.checkIn), formatDate(existing.checkOut))).catch((emailError) => {
             console.warn("Booking cancellation email failed", {
                 operation: "deleteBooking",
@@ -319,8 +318,8 @@ const deleteBooking = async (req, res, next) => {
 exports.deleteBooking = deleteBooking;
 const getUserBookings = async (req, res, next) => {
     try {
-        const userId = Number(req.params.userId);
-        if (!Number.isInteger(userId) || userId <= 0) {
+        const userId = req.params.userId;
+        if (!(0, ids_1.isUuid)(userId)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }

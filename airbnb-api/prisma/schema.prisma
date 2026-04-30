@@ -25,7 +25,7 @@ enum BookingStatus {
 }
 
 model Listing {
-  id            Int          @id @default(autoincrement())
+  id            String       @id @default(uuid())
   title         String
   description   String
   location      String
@@ -36,7 +36,7 @@ model Listing {
   rating        Float?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
-  hostId        Int
+  hostId        String
   host          User         @relation(fields: [hostId], references: [id], onDelete: Cascade)
   bookings      Booking[]
   photos        ListingPhoto[]
@@ -45,12 +45,12 @@ model Listing {
   @@index([location])
   @@index([pricePerNight])
   @@index([type])
-  @@index([hostId]) 
+  @@index([hostId])
   @@index([type, location])
 }
 
 model User {
-  id               Int       @id @default(autoincrement())
+  id               String    @id @default(uuid())
   name             String
   email            String    @unique
   username         String    @unique
@@ -70,22 +70,22 @@ model User {
 }
 
 model ListingPhoto {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid())
   url       String
   publicId  String
-  listingId Int
+  listingId String
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
 }
 
 model Booking {
-  id         Int           @id @default(autoincrement())
+  id         String        @id @default(uuid())
   checkIn    DateTime
   checkOut   DateTime
   totalPrice Float?
   status     BookingStatus @default(PENDING)
   createdAt  DateTime      @default(now())
-  guestId    Int
-  listingId  Int
+  guestId    String
+  listingId  String
   guest      User          @relation(fields: [guestId], references: [id], onDelete: Cascade)
   listing    Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
   @@index([guestId])
@@ -94,13 +94,13 @@ model Booking {
 }
 
 model Review {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid())
   rating    Int
   comment   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  userId    Int
-  listingId Int
+  userId    String
+  listingId String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   

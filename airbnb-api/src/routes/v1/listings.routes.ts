@@ -7,8 +7,8 @@ import {
   getListingStats,
   updateListing,
   searchListings
-} from "../controllers/listings.controller";
-import { authenticate, requireHost } from "../middlewares/auth.middleware";
+} from "../../controllers/listings.controller";
+import { authenticate, requireHost } from "../../middlewares/auth.middleware";
 
 /**
  * @swagger
@@ -77,6 +77,82 @@ import { authenticate, requireHost } from "../middlewares/auth.middleware";
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *
+ * /listings/stats:
+ *   get:
+ *     tags: [Listings]
+ *     summary: Get listing statistics by location
+ *     responses:
+ *       200:
+ *         description: Listing statistics fetched
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   location:
+ *                     type: string
+ *                   total:
+ *                     type: integer
+ *                   avg_price:
+ *                     type: string
+ *                   min_price:
+ *                     type: number
+ *                   max_price:
+ *                     type: number
+ *
+ * /listings/search:
+ *   get:
+ *     tags: [Listings]
+ *     summary: Search listings with filters
+ *     parameters:
+ *       - in: query
+ *         name: location
+ *         schema:
+ *           type: string
+ *         description: Filter by location
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [apartment, house, villa, cabin]
+ *         description: Filter by property type
+ *       - in: query
+ *         name: minPrice
+ *         schema:
+ *           type: number
+ *         description: Minimum price per night
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *         description: Maximum price per night
+ *       - in: query
+ *         name: guests
+ *         schema:
+ *           type: integer
+ *         description: Number of guests
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Search results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Listing'
  *
  * /listings/{id}:
  *   get:
@@ -183,39 +259,11 @@ import { authenticate, requireHost } from "../middlewares/auth.middleware";
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 
-/**
- * @swagger
- * /listings/stats:
- *   get:
- *     tags: [Listings]
- *     summary: Get listing statistics by location
- *     responses:
- *       200:
- *         description: Listing statistics fetched
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   location:
- *                     type: string
- *                   total:
- *                     type: integer
- *                   avg_price:
- *                     type: string
- *                   min_price:
- *                     type: number
- *                   max_price:
- *                     type: number
- */
-
 const listingsRouter = Router();
 
-listingsRouter.get("/", getAllListings);
-listingsRouter.get("/search", searchListings);
 listingsRouter.get("/stats", getListingStats);
+listingsRouter.get("/search", searchListings);
+listingsRouter.get("/", getAllListings);
 listingsRouter.get("/:id", getListingById);
 listingsRouter.post("/", authenticate, requireHost, createListing);
 listingsRouter.put("/:id", authenticate, updateListing);

@@ -1,14 +1,8 @@
-import { Router } from "express";
-import {
-  createBooking,
-  deleteBooking,
-  getAllBookings,
-  getBookingById,
-  updateBookingStatus,
-  getUserBookings
-} from "../controllers/bookings.controller";
-import { authenticate, requireGuest } from "../middlewares/auth.middleware";
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const bookings_controller_1 = require("../../controllers/bookings.controller");
+const auth_middleware_1 = require("../../middlewares/auth.middleware");
 /**
  * @swagger
  * /bookings:
@@ -184,14 +178,11 @@ import { authenticate, requireGuest } from "../middlewares/auth.middleware";
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-
-const bookingsRouter = Router();
-
-bookingsRouter.get("/", getAllBookings);
-bookingsRouter.get("/users/:userId", getUserBookings);
-bookingsRouter.get("/:id", getBookingById);
-bookingsRouter.post("/", authenticate, requireGuest, createBooking);
-bookingsRouter.delete("/:id", authenticate, deleteBooking);
-bookingsRouter.put("/:id", authenticate, updateBookingStatus);
-
-export default bookingsRouter;
+const bookingsRouter = (0, express_1.Router)();
+bookingsRouter.get("/", bookings_controller_1.getAllBookings);
+bookingsRouter.get("/users/:userId", bookings_controller_1.getUserBookings);
+bookingsRouter.get("/:id", bookings_controller_1.getBookingById);
+bookingsRouter.post("/", auth_middleware_1.authenticate, auth_middleware_1.requireGuest, bookings_controller_1.createBooking);
+bookingsRouter.delete("/:id", auth_middleware_1.authenticate, bookings_controller_1.deleteBooking);
+bookingsRouter.put("/:id", auth_middleware_1.authenticate, bookings_controller_1.updateBookingStatus);
+exports.default = bookingsRouter;

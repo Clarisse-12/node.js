@@ -1,7 +1,16 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const users_controller_1 = require("../controllers/users.controller");
+import { Router } from "express";
+import {
+  createUser,
+  deleteUser,
+  getAllUsers,
+  getUserBookings,
+  getUserById,
+  getUserStats,
+  getUserListings,
+  updateUser
+} from "../../controllers/users.controller";
+import { authenticate } from "../../middlewares/auth.middleware";
+
 /**
  * @swagger
  * /users:
@@ -54,6 +63,26 @@ const users_controller_1 = require("../controllers/users.controller");
  *               $ref: '#/components/schemas/User'
  *       400:
  *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *
+ * /users/stats:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get user statistics
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       401:
+ *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
@@ -157,6 +186,74 @@ const users_controller_1 = require("../controllers/users.controller");
  *     responses:
  *       200:
  *         description: User deleted
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *
+ * /users/{id}/listings:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get user listings
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User listings fetched
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Listing'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *
+ * /users/{id}/bookings:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get user bookings
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User bookings fetched
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Booking'
  *       401:
  *         description: Unauthorized
  *         content:
@@ -419,13 +516,15 @@ const users_controller_1 = require("../controllers/users.controller");
  *         user:
  *           $ref: '#/components/schemas/User'
  */
-const usersRouter = (0, express_1.Router)();
-usersRouter.get("/", users_controller_1.getAllUsers);
-usersRouter.get("/stats", users_controller_1.getUserStats);
-usersRouter.get("/:id", users_controller_1.getUserById);
-usersRouter.get("/:id/listings", users_controller_1.getUserListings);
-usersRouter.get("/:id/bookings", users_controller_1.getUserBookings);
-usersRouter.post("/", users_controller_1.createUser);
-usersRouter.put("/:id", users_controller_1.updateUser);
-usersRouter.delete("/:id", users_controller_1.deleteUser);
-exports.default = usersRouter;
+
+const usersRouter = Router();
+
+usersRouter.get("/stats", getUserStats);
+usersRouter.get("/", getAllUsers);
+usersRouter.get("/:id", getUserById);
+usersRouter.get("/:id/listings", getUserListings);
+usersRouter.get("/:id/bookings", getUserBookings);
+usersRouter.post("/", createUser);
+usersRouter.put("/:id", updateUser);
+usersRouter.delete("/:id", deleteUser);
+export default usersRouter;

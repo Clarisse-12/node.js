@@ -4,15 +4,38 @@ import prisma from "../config/prisma";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { getOptimizedUrl } from "../config/cloudinary.js";
 import { getCache, setCache, invalidateCache } from "../config/cache";
+import { isUuid } from "../utils/ids";
 
 const VALID_SORT_FIELDS: Array<"pricePerNight" | "createdAt"> = ["pricePerNight", "createdAt"];
 
+const serializeQuery = (query: Request["query"]): string => {
+  return Object.keys(query)
+    .sort()
+    .map((key) => `${key}=${JSON.stringify(query[key])}`)
+    .join("&");
+};
+
+const listingListCacheKey = (query: Request["query"]): string => {
+  return `listings:list:${serializeQuery(query)}`;
+};
+
+const invalidateListingListCaches = (): void => {
+  invalidateCache("listings:list:");
+};
+
+const invalidateListingStatsCache = (): void => {
+  invalidateCache("listings:stats");
+};
+
+const invalidateListingReviewCaches = (listingId: string): void => {
+  invalidateCache(`reviews:${listingId}:`);
+};
 const isListingType = (value: unknown): value is ListingType => {
   return Object.values(ListingType).includes(value as ListingType);
 };
 
 const parsePositiveInt = (value: unknown, fallback: number): number => {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
+  const parsed = Number(value ?? "");
   if (!Number.isInteger(parsed) || parsed <= 0) {
     return fallback;
   }
@@ -22,6 +45,13 @@ const parsePositiveInt = (value: unknown, fallback: number): number => {
 export const getAllListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { location, type, maxPrice, page, limit, sortBy, order } = req.query;
+    const cacheKey = listingListCacheKey(req.query);
+    const cached = getCache(cacheKey);
+    if (cached !== null) {
+      res.json(cached);
+      return;
+    }
+
     const pageNumber = parsePositiveInt(page, 1);
     const limitNumber = parsePositiveInt(limit, 10);
     const skip = (pageNumber - 1) * limitNumber;
@@ -85,7 +115,7 @@ export const getAllListings = async (req: Request, res: Response, next: NextFunc
       }
     });
 
-    res.json({
+    const response = {
       page: pageNumber,
       limit: limitNumber,
       data: listings.map((listing) => ({
@@ -95,7 +125,10 @@ export const getAllListings = async (req: Request, res: Response, next: NextFunc
           optimizedUrl: getOptimizedUrl(photo.url, 600, 400)
         }))
       }))
-    });
+    };
+
+    setCache(cacheKey, response, 60);
+    res.json(response);
   } catch (error) {
     next({ error, operation: "getAllListings" });
   }
@@ -209,8 +242,8 @@ export const searchListings = async (req: Request, res: Response, next: NextFunc
 };
 export const getListingById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -251,9 +284,9 @@ type ListingStatsRow = {
 
 export const getListingStats = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const cacheKey = "stats:listings";
+    const cacheKey = "listings:stats";
     const cached = getCache(cacheKey);
-    if (cached) {
+    if (cached !== null) {
       res.json(cached);
       return;
     }
@@ -350,6 +383,9 @@ export const createListing = async (req: AuthRequest, res: Response, next: NextF
       }
     });
 
+    invalidateListingListCaches();
+    invalidateListingStatsCache();
+
     res.status(201).json(listing);
   } catch (error) {
     next({ error, operation: "createListing" });
@@ -358,8 +394,8 @@ export const createListing = async (req: AuthRequest, res: Response, next: NextF
 
 export const updateListing = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -417,6 +453,9 @@ export const updateListing = async (req: AuthRequest, res: Response, next: NextF
       }
     });
 
+    invalidateListingListCaches();
+    invalidateListingStatsCache();
+
     res.json(listing);
   } catch (error) {
     next({ error, operation: "updateListing" });
@@ -425,8 +464,8 @@ export const updateListing = async (req: AuthRequest, res: Response, next: NextF
 
 export const deleteListing = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -448,6 +487,11 @@ export const deleteListing = async (req: AuthRequest, res: Response, next: NextF
     }
 
     const deleted = await prisma.listing.delete({ where: { id } });
+
+    invalidateListingListCaches();
+    invalidateListingStatsCache();
+    invalidateListingReviewCaches(id);
+
     res.json(deleted);
   } catch (error) {
     next({ error, operation: "deleteListing" });

@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { createReview, getListingReviews, deleteReview } from "../controllers/reviews.controller";
-import { authenticate } from "../middlewares/auth.middleware";
+import { createReview, getListingReviews, deleteReview } from "../../controllers/reviews.controller";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const reviewsRouter = Router();
 
@@ -11,7 +11,7 @@ const reviewsRouter = Router();
  *     summary: Create a new review for a listing
  *     tags: [Reviews]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -23,29 +23,26 @@ const reviewsRouter = Router();
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               userId:
- *                 type: integer
- *               rating:
- *                 type: integer
- *                 minimum: 1
- *                 maximum: 5
- *               comment:
- *                 type: string
+ *             $ref: '#/components/schemas/CreateReviewInput'
  *     responses:
  *       201:
  *         description: Review created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Review'
  *       400:
  *         description: Invalid rating or missing fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Listing not found
- */
-reviewsRouter.post("/listings/:id/reviews", authenticate, createReview);
-
-/**
- * @swagger
- * /listings/{id}/reviews:
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *   get:
  *     summary: Get paginated reviews for a listing
  *     tags: [Reviews]
@@ -68,18 +65,25 @@ reviewsRouter.post("/listings/:id/reviews", authenticate, createReview);
  *     responses:
  *       200:
  *         description: Reviews with pagination
- */
-reviewsRouter.get("/listings/:id/reviews", getListingReviews);
-
-/**
- * @swagger
- * /reviews/{id}:
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Review'
+ *
+ * /listings/{listingId}/reviews/{id}:
  *   delete:
  *     summary: Delete a review
  *     tags: [Reviews]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
+ *       - in: path
+ *         name: listingId
+ *         required: true
+ *         schema:
+ *           type: integer
  *       - in: path
  *         name: id
  *         required: true
@@ -88,9 +92,20 @@ reviewsRouter.get("/listings/:id/reviews", getListingReviews);
  *     responses:
  *       200:
  *         description: Review deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Review'
  *       404:
  *         description: Review not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-reviewsRouter.delete("/reviews/:id", authenticate, deleteReview);
+
+reviewsRouter.post("/listings/:id/reviews", authenticate, createReview);
+reviewsRouter.get("/listings/:id/reviews", getListingReviews);
+reviewsRouter.delete("/listings/:listingId/reviews/:id", authenticate, deleteReview);
 
 export default reviewsRouter;

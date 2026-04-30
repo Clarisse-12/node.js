@@ -3,10 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.updateUser = exports.createUser = exports.getUserBookings = exports.getUserListings = exports.getUserById = exports.getAllUsers = void 0;
+exports.deleteUser = exports.updateUser = exports.createUser = exports.getUserBookings = exports.getUserListings = exports.getUserById = exports.getUserStats = exports.getAllUsers = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
+const cache_1 = require("../config/cache");
+const ids_1 = require("../utils/ids");
 const isValidRole = (value) => {
     return value === client_1.Role.HOST || value === client_1.Role.GUEST;
 };
@@ -32,10 +34,40 @@ const getAllUsers = async (_req, res, next) => {
     }
 };
 exports.getAllUsers = getAllUsers;
+const getUserStats = async (_req, res, next) => {
+    try {
+        const cacheKey = "users:stats";
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached !== null) {
+            res.json(cached);
+            return;
+        }
+        const [totalUsers, byRole] = await Promise.all([
+            prisma_1.default.user.count(),
+            prisma_1.default.user.groupBy({
+                by: ["role"],
+                _count: true
+            })
+        ]);
+        const stats = {
+            totalUsers,
+            byRole: byRole.map((entry) => ({
+                role: entry.role,
+                count: entry._count
+            }))
+        };
+        (0, cache_1.setCache)(cacheKey, stats, 300);
+        res.json(stats);
+    }
+    catch (error) {
+        next({ error, operation: "getUserStats" });
+    }
+};
+exports.getUserStats = getUserStats;
 const getUserById = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -63,8 +95,8 @@ const getUserById = async (req, res, next) => {
 exports.getUserById = getUserById;
 const getUserListings = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -83,8 +115,8 @@ const getUserListings = async (req, res, next) => {
 exports.getUserListings = getUserListings;
 const getUserBookings = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -139,6 +171,7 @@ const createUser = async (req, res, next) => {
                 bio
             }
         });
+        (0, cache_1.invalidateCache)("users:stats");
         res.status(201).json(sanitizeUser(user));
     }
     catch (error) {
@@ -148,8 +181,8 @@ const createUser = async (req, res, next) => {
 exports.createUser = createUser;
 const updateUser = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -177,6 +210,7 @@ const updateUser = async (req, res, next) => {
                 bio
             }
         });
+        (0, cache_1.invalidateCache)("users:stats");
         res.json(sanitizeUser(user));
     }
     catch (error) {
@@ -186,8 +220,8 @@ const updateUser = async (req, res, next) => {
 exports.updateUser = updateUser;
 const deleteUser = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid user id" });
             return;
         }
@@ -197,6 +231,7 @@ const deleteUser = async (req, res, next) => {
             return;
         }
         const deleted = await prisma_1.default.user.delete({ where: { id } });
+        (0, cache_1.invalidateCache)("users:stats");
         res.json(deleted);
     }
     catch (error) {

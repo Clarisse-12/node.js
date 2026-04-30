@@ -2,7 +2,7 @@ services:
   - type: web
     name: airbnb-api
     env: node
-    rootDir: .
+    rootDir: src
     buildCommand: npm install && npm run build
     startCommand: npm start
     autoDeploy: true

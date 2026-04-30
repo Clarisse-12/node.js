@@ -4,9 +4,9 @@
   "description": "Lesson 1 assignment: Airbnb Listings API",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec tsx index.ts",
+    "dev": "nodemon --exec tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "tsx index.ts",
+    "start": "tsx src/index.ts",
     "migrate": "prisma migrate deploy"
   },
   "prisma": {

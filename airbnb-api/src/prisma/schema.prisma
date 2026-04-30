@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  HOST
+  GUEST
+}
+
+enum ListingType {
+  APARTMENT
+  HOUSE
+  VILLA
+  CABIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Listing {
+  id            String       @id @default(uuid())
+  title         String
+  description   String
+  location      String
+  pricePerNight Float
+  guests        Int
+  type          ListingType
+  amenities     String[]
+  rating        Float?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  hostId        String
+  host          User         @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  bookings      Booking[]
+  photos        ListingPhoto[]
+  reviews       Review[]
+
+  @@index([location])
+  @@index([pricePerNight])
+  @@index([type])
+  @@index([hostId])
+  @@index([type, location])
+}
+
+model User {
+  id               String    @id @default(uuid())
+  name             String
+  email            String    @unique
+  username         String    @unique
+  phone            String
+  password         String
+  role             Role      @default(GUEST)
+  avatar           String?
+  avatarPublicId   String?
+  bio              String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  listings         Listing[]
+  bookings         Booking[]
+  reviews          Review[]
+}
+
+model ListingPhoto {
+  id        String   @id @default(uuid())
+  url       String
+  publicId  String
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+}
+
+model Booking {
+  id         String        @id @default(uuid())
+  checkIn    DateTime
+  checkOut   DateTime
+  totalPrice Float?
+  status     BookingStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  guestId    String
+  listingId  String
+  guest      User          @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  listing    Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  @@index([guestId])
+  @@index([listingId])
+  @@index([listingId, checkIn, checkOut])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  listingId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  @@index([listingId])
+  @@index([userId])
+  @@index([listingId, createdAt])
+}

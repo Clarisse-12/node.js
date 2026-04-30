@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteBooking = exports.updateBookingStatus = exports.createBooking = exports.getBookingById = exports.getAllBookings = void 0;
+exports.getUserBookings = exports.deleteBooking = exports.updateBookingStatus = exports.createBooking = exports.getBookingById = exports.getAllBookings = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const email_js_1 = require("../config/email.js");
 const emails_js_1 = require("../templates/emails.js");
+const cache_1 = require("../config/cache");
 const isBookingStatus = (value) => {
     return Object.values(client_1.BookingStatus).includes(value);
 };
@@ -50,23 +51,40 @@ const parseIsoDateOnly = (value) => {
         parsed.getUTCDate() === day;
     return isSameDate ? parsed : null;
 };
-const getAllBookings = async (_req, res, next) => {
+const getAllBookings = async (req, res, next) => {
     try {
-        const bookings = await prisma_1.default.booking.findMany({
-            include: {
-                guest: {
-                    select: {
-                        name: true
-                    }
-                },
-                listing: {
-                    select: {
-                        title: true
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.max(1, Number(req.query.limit) || 10);
+        const skip = (page - 1) * limit;
+        const [bookings, total] = await Promise.all([
+            prisma_1.default.booking.findMany({
+                skip,
+                take: limit,
+                include: {
+                    guest: {
+                        select: {
+                            name: true
+                        }
+                    },
+                    listing: {
+                        select: {
+                            title: true,
+                            location: true
+                        }
                     }
                 }
+            }),
+            prisma_1.default.booking.count()
+        ]);
+        res.json({
+            data: bookings,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
             }
         });
-        res.json(bookings);
     }
     catch (error) {
         next({ error, operation: "getAllBookings" });
@@ -190,6 +208,7 @@ const createBooking = async (req, res, next) => {
             });
         });
         res.status(201).json(newBooking);
+        (0, cache_1.invalidateCache)("stats");
         const guest = await prisma_1.default.user.findUnique({
             where: { id: req.userId },
             select: {
@@ -285,6 +304,7 @@ const deleteBooking = async (req, res, next) => {
             }
         });
         res.json(booking);
+        (0, cache_1.invalidateCache)("stats");
         void (0, email_js_1.sendEmail)(booking.guest.email, "Your booking has been cancelled", bookingCancellationTemplate(booking.guest.name, booking.listing.title, formatDate(existing.checkIn), formatDate(existing.checkOut))).catch((emailError) => {
             console.warn("Booking cancellation email failed", {
                 operation: "deleteBooking",
@@ -297,3 +317,51 @@ const deleteBooking = async (req, res, next) => {
     }
 };
 exports.deleteBooking = deleteBooking;
+const getUserBookings = async (req, res, next) => {
+    try {
+        const userId = Number(req.params.userId);
+        if (!Number.isInteger(userId) || userId <= 0) {
+            res.status(400).json({ message: "Invalid user id" });
+            return;
+        }
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.max(1, Number(req.query.limit) || 10);
+        const skip = (page - 1) * limit;
+        const user = await prisma_1.default.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+        const [bookings, total] = await Promise.all([
+            prisma_1.default.booking.findMany({
+                where: { guestId: userId },
+                skip,
+                take: limit,
+                include: {
+                    listing: {
+                        select: {
+                            id: true,
+                            title: true,
+                            location: true,
+                            pricePerNight: true
+                        }
+                    }
+                }
+            }),
+            prisma_1.default.booking.count({ where: { guestId: userId } })
+        ]);
+        res.json({
+            data: bookings,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    }
+    catch (error) {
+        next({ error, operation: "getUserBookings" });
+    }
+};
+exports.getUserBookings = getUserBookings;

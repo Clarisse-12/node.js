@@ -204,6 +204,7 @@ const auth_middleware_1 = require("../middlewares/auth.middleware");
  */
 const listingsRouter = (0, express_1.Router)();
 listingsRouter.get("/", listings_controller_1.getAllListings);
+listingsRouter.get("/search", listings_controller_1.searchListings);
 listingsRouter.get("/stats", listings_controller_1.getListingStats);
 listingsRouter.get("/:id", listings_controller_1.getListingById);
 listingsRouter.post("/", auth_middleware_1.authenticate, auth_middleware_1.requireHost, listings_controller_1.createListing);

@@ -5,7 +5,8 @@ import {
   getAllListings,
   getListingById,
   getListingStats,
-  updateListing
+  updateListing,
+  searchListings
 } from "../controllers/listings.controller";
 import { authenticate, requireHost } from "../middlewares/auth.middleware";
 
@@ -213,6 +214,7 @@ import { authenticate, requireHost } from "../middlewares/auth.middleware";
 const listingsRouter = Router();
 
 listingsRouter.get("/", getAllListings);
+listingsRouter.get("/search", searchListings);
 listingsRouter.get("/stats", getListingStats);
 listingsRouter.get("/:id", getListingById);
 listingsRouter.post("/", authenticate, requireHost, createListing);

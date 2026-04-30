@@ -3,6 +3,7 @@ import { ListingType, Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { getOptimizedUrl } from "../config/cloudinary.js";
+import { getCache, setCache, invalidateCache } from "../config/cache";
 
 const VALID_SORT_FIELDS: Array<"pricePerNight" | "createdAt"> = ["pricePerNight", "createdAt"];
 
@@ -100,6 +101,112 @@ export const getAllListings = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+export const searchListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { location, type, minPrice, maxPrice, guests, page, limit } = req.query;
+    const pageNumber = parsePositiveInt(page, 1);
+    const limitNumber = parsePositiveInt(limit, 10);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const where: Prisma.ListingWhereInput = {};
+
+    if (location) {
+      where.location = {
+        contains: String(location),
+        mode: "insensitive"
+      };
+    }
+
+    if (type) {
+      const enumType = String(type).toUpperCase();
+      if (!isListingType(enumType)) {
+        res.status(400).json({ message: "Invalid listing type" });
+        return;
+      }
+      where.type = enumType;
+    }
+
+    if (minPrice !== undefined) {
+      const parsedMinPrice = Number(minPrice);
+      if (Number.isNaN(parsedMinPrice) || parsedMinPrice < 0) {
+        res.status(400).json({ message: "minPrice must be a positive number" });
+        return;
+      }
+      where.pricePerNight = {
+        ...(typeof where.pricePerNight === 'object' && where.pricePerNight !== null ? where.pricePerNight : {}),
+        gte: parsedMinPrice
+      };
+    }
+
+    if (maxPrice !== undefined) {
+      const parsedMaxPrice = Number(maxPrice);
+      if (Number.isNaN(parsedMaxPrice) || parsedMaxPrice < 0) {
+        res.status(400).json({ message: "maxPrice must be a positive number" });
+        return;
+      }
+      where.pricePerNight = {
+        ...(typeof where.pricePerNight === 'object' && where.pricePerNight !== null ? where.pricePerNight : {}),
+        lte: parsedMaxPrice
+      };
+    }
+
+    if (guests !== undefined) {
+      const parsedGuests = Number(guests);
+      if (!Number.isInteger(parsedGuests) || parsedGuests <= 0) {
+        res.status(400).json({ message: "guests must be a positive integer" });
+        return;
+      }
+      where.guests = { gte: parsedGuests };
+    }
+
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        skip,
+        take: limitNumber,
+        select: {
+          id: true,
+          title: true,
+          location: true,
+          pricePerNight: true,
+          guests: true,
+          type: true,
+          photos: {
+            select: {
+              url: true,
+              publicId: true
+            }
+          },
+          host: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      }),
+      prisma.listing.count({ where })
+    ]);
+
+    res.json({
+      data: listings.map((listing) => ({
+        ...listing,
+        photos: listing.photos.map((photo) => ({
+          ...photo,
+          optimizedUrl: getOptimizedUrl(photo.url, 600, 400)
+        }))
+      })),
+      meta: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber)
+      }
+    });
+  } catch (error) {
+    next({ error, operation: "searchListings" });
+  }
+};
 export const getListingById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -144,18 +251,46 @@ type ListingStatsRow = {
 
 export const getListingStats = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const stats = await prisma.$queryRaw<ListingStatsRow[]>`
-      SELECT
-        location,
-        COUNT(*)::int AS total,
-        ROUND(AVG("pricePerNight")::numeric, 2) AS avg_price,
-        MIN("pricePerNight") AS min_price,
-        MAX("pricePerNight") AS max_price
-      FROM "Listing"
-      GROUP BY location
-      ORDER BY total DESC
-    `;
+    const cacheKey = "stats:listings";
+    const cached = getCache(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
 
+    const [total, avgPrice, byLocation, byType] = await Promise.all([
+      prisma.listing.count(),
+      prisma.listing.aggregate({
+        _avg: { pricePerNight: true }
+      }),
+      prisma.listing.groupBy({
+        by: ["location"],
+        _count: true,
+        _avg: { pricePerNight: true }
+      }),
+      prisma.listing.groupBy({
+        by: ["type"],
+        _count: true,
+        _avg: { pricePerNight: true }
+      })
+    ]);
+
+    const stats = {
+      totalListings: total,
+      averagePrice: Math.round((avgPrice._avg.pricePerNight || 0) * 100) / 100,
+      byLocation: byLocation.map((loc) => ({
+        location: loc.location,
+        count: loc._count,
+        avgPrice: Math.round((loc._avg.pricePerNight || 0) * 100) / 100
+      })),
+      byType: byType.map((t) => ({
+        type: t.type,
+        count: t._count,
+        avgPrice: Math.round((t._avg.pricePerNight || 0) * 100) / 100
+      }))
+    };
+
+    setCache(cacheKey, stats, 300);
     res.json(stats);
   } catch (error) {
     next({ error, operation: "getListingStats" });

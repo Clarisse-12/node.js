@@ -16,8 +16,8 @@ const options = {
         },
         servers: [
             {
-                url: "http://localhost:3000/api/v1",
-                description: "Development server",
+                url: "http://localhost:3000/api/v1/api-docs",
+                description: "PRODUCTION SERVER",
             },
         ],
         components: {

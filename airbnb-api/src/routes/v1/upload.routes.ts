@@ -21,7 +21,8 @@ import { authenticate } from "../../middlewares/auth.middleware.js";
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *         description: User id (must match authenticated user)
  *     requestBody:
  *       required: true
@@ -72,7 +73,8 @@ import { authenticate } from "../../middlewares/auth.middleware.js";
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *     responses:
  *       200:
  *         description: Avatar removed successfully
@@ -113,7 +115,8 @@ import { authenticate } from "../../middlewares/auth.middleware.js";
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *         description: Listing id
  *     requestBody:
  *       required: true
@@ -166,13 +169,15 @@ import { authenticate } from "../../middlewares/auth.middleware.js";
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *         description: Listing id
  *       - in: path
  *         name: photoId
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *         description: Photo id
  *     responses:
  *       200:

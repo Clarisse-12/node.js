@@ -5,6 +5,7 @@ import listingsRouter from "./listings.routes.js";
 import bookingsRouter from "./bookings.routes.js";
 import reviewsRouter from "./reviews.routes.js";
 import uploadRouter from "./upload.routes.js";
+import aiRouter from "./ai.routes.js";
 
 const v1Router = Router();
 
@@ -14,5 +15,6 @@ v1Router.use("/listings", listingsRouter);
 v1Router.use("/bookings", bookingsRouter);
 v1Router.use("/", reviewsRouter);
 v1Router.use("/", uploadRouter);
+v1Router.use("/ai", aiRouter);
 
 export default v1Router;

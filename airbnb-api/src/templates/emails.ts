@@ -1,5 +1,15 @@
 const BRAND_COLOR = "#FF5A5F";
 
+const getAppUrl = (): string => {
+  const appUrl = process.env["APP_URL"];
+  if (appUrl) {
+    return appUrl.replace(/\/$/, "");
+  }
+
+  const apiUrl = (process.env["API_URL"] ?? "http://localhost:3000").replace(/\/$/, "");
+  return apiUrl.replace(/\/api\/v1$/, "");
+};
+
 const baseTemplate = (title: string, content: string): string => {
   return `
     <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 640px; margin: 0 auto; line-height: 1.5;">
@@ -28,7 +38,7 @@ export const welcomeEmail = (name: string, role: string): string => {
       <p>Hi ${name},</p>
       <p>Your account has been created successfully.</p>
       <p>${roleText}</p>
-      <p style="margin-top: 16px;">${button("Open Airbnb", "http://localhost:3000/app")}</p>
+      <p style="margin-top: 16px;">${button("Open Airbnb", `${getAppUrl()}/app`)}</p>
     `
   );
 };
@@ -52,6 +62,7 @@ export const bookingConfirmationEmail = (
       <p><strong>Check-out:</strong> ${checkOut}</p>
       <p><strong>Total price:</strong> $${totalPrice.toFixed(2)}</p>
       <p style="margin-top: 12px;">Cancellation policy applies according to listing terms and booking window.</p>
+      <p style="margin-top: 16px;">${button("Open Airbnb", `${getAppUrl()}/app`)}</p>
     `
   );
 };
@@ -70,7 +81,7 @@ export const bookingCancellationEmail = (
       <p><strong>Check-in:</strong> ${checkIn}</p>
       <p><strong>Check-out:</strong> ${checkOut}</p>
       <p style="margin-top: 12px;">You can find another great place anytime.</p>
-      <p>${button("Find Listings", "http://localhost:3000/app")}</p>
+      <p>${button("Find Listings", `${getAppUrl()}/app`)}</p>
     `
   );
 };

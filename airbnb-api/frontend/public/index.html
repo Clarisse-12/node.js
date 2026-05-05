@@ -26,12 +26,7 @@
 
           <form id="login-form" class="auth-form">
             <label>Email<input type="email" name="email" required /></label>
-            <label>Login As
-              <select name="role" required>
-                <option value="ADMIN">Admin</option>
-                <option value="USER">User</option>
-              </select>
-            </label>
+            <label>Password<input type="password" name="password" required /></label>
             <button type="submit">Login</button>
           </form>
 
@@ -40,6 +35,7 @@
             <label>Email<input type="email" name="email" required /></label>
             <label>Username<input name="username" required /></label>
             <label>Phone<input name="phone" placeholder="+1-555-0101" required /></label>
+            <label>Password<input type="password" name="password" minlength="8" required /></label>
             <label>Signup As
               <select name="role" required>
                 <option value="ADMIN">Admin</option>
@@ -49,7 +45,31 @@
             <button type="submit">Create Account</button>
           </form>
 
-          <p class="hint">This frontend uses your existing backend users table as account source.</p>
+          <form id="forgot-form" class="auth-form hidden">
+            <label>Email<input type="email" name="email" required /></label>
+            <button type="submit">Send Reset Link</button>
+            <button id="back-to-login-btn" class="secondary" type="button">Back to Login</button>
+          </form>
+
+          <button id="show-forgot-btn" class="secondary" type="button">Forgot password?</button>
+          <p class="hint">This frontend now uses the real auth API, so welcome, reset, and booking emails can work end to end.</p>
+        </article>
+      </section>
+
+      <section id="reset-view" class="hidden">
+        <header class="hero">
+          <p class="eyebrow">Security</p>
+          <h1>Reset Password</h1>
+          <p class="subtitle">Use the link from your email to set a new password.</p>
+        </header>
+
+        <article class="panel auth-panel">
+          <form id="reset-form" class="auth-form">
+            <label>New Password<input type="password" name="newPassword" minlength="8" required /></label>
+            <label>Confirm Password<input type="password" name="confirmPassword" minlength="8" required /></label>
+            <button type="submit">Reset Password</button>
+          </form>
+          <p class="hint">If the reset link expires, request a new one from the login screen.</p>
         </article>
       </section>
 

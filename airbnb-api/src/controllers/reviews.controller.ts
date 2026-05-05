@@ -2,18 +2,19 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../config/prisma";
 import { getCache, setCache, invalidateCache } from "../config/cache";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { isUuid } from "../utils/ids";
 
-const prismaReview = (prisma as any).review;
+const prismaReview = prisma.review;
 
 export const createReview = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const listingId = Number(req.params.id);
+    const listingId = req.params.id;
     const { rating, comment } = req.body as {
       rating?: number;
       comment?: string;
     };
 
-    if (!Number.isInteger(listingId) || listingId <= 0) {
+    if (!isUuid(listingId)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -33,7 +34,7 @@ export const createReview = async (req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    const listing = await prisma.listing.findUnique({ where: { id: String(listingId) } });
+    const listing = await prisma.listing.findUnique({ where: { id: listingId } });
     if (!listing) {
       res.status(404).json({ message: "Listing not found" });
       return;
@@ -59,8 +60,8 @@ export const createReview = async (req: AuthRequest, res: Response, next: NextFu
 
 export const getListingReviews = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const listingId = Number(req.params.id);
-    if (!Number.isInteger(listingId) || listingId <= 0) {
+    const listingId = req.params.id;
+    if (!isUuid(listingId)) {
       res.status(400).json({ message: "Invalid listing id" });
       return;
     }
@@ -71,7 +72,7 @@ export const getListingReviews = async (req: Request, res: Response, next: NextF
 
     const cacheKey = `reviews:${listingId}:${page}:${limit}`;
     const cached = getCache(cacheKey);
-    if (cached) {
+    if (cached !== null) {
       res.json(cached);
       return;
     }
@@ -112,8 +113,8 @@ export const getListingReviews = async (req: Request, res: Response, next: NextF
 
 export const deleteReview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!isUuid(id)) {
       res.status(400).json({ message: "Invalid review id" });
       return;
     }

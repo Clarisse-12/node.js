@@ -18,6 +18,16 @@ const getJwtSecret = (): string => {
 
 const getJwtExpiresIn = (): string => process.env["JWT_EXPIRES_IN"] ?? "7d";
 
+const getAppUrl = (): string => {
+  const appUrl = process.env["APP_URL"];
+  if (appUrl) {
+    return appUrl.replace(/\/$/, "");
+  }
+
+  const apiUrl = (process.env["API_URL"] ?? "http://localhost:3000").replace(/\/$/, "");
+  return apiUrl.replace(/\/api\/v1$/, "");
+};
+
 const sanitizeUser = <T extends Record<string, unknown>>(user: T): T => {
   const safeUser = { ...user } as Record<string, unknown>;
   delete safeUser.password;
@@ -258,8 +268,7 @@ export const forgotPassword = async (req: AuthRequest, res: Response, next: Next
         }
       });
 
-      const baseUrl = (process.env["API_URL"] || "http://localhost:3000").replace(/\/$/, "");
-      resetLink = `${baseUrl}/api/v1/auth/reset-password/${rawToken}`;
+      resetLink = `${getAppUrl()}/app?resetToken=${rawToken}`;
     }
 
     res.status(200).json({ message: "If that email is registered, a reset link has been sent" });

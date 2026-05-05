@@ -6,12 +6,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteReview = exports.getListingReviews = exports.createReview = void 0;
 const prisma_1 = __importDefault(require("../config/prisma"));
 const cache_1 = require("../config/cache");
+const ids_1 = require("../utils/ids");
+const ai_controller_1 = require("./ai.controller");
 const prismaReview = prisma_1.default.review;
 const createReview = async (req, res, next) => {
     try {
-        const listingId = Number(req.params.id);
+        const listingId = req.params.id;
         const { rating, comment } = req.body;
-        if (!Number.isInteger(listingId) || listingId <= 0) {
+        if (!(0, ids_1.isUuid)(listingId)) {
             res.status(400).json({ message: "Invalid listing id" });
             return;
         }
@@ -27,7 +29,7 @@ const createReview = async (req, res, next) => {
             res.status(400).json({ message: "Rating must be an integer between 1 and 5" });
             return;
         }
-        const listing = await prisma_1.default.listing.findUnique({ where: { id: String(listingId) } });
+        const listing = await prisma_1.default.listing.findUnique({ where: { id: listingId } });
         if (!listing) {
             res.status(404).json({ message: "Listing not found" });
             return;
@@ -41,6 +43,7 @@ const createReview = async (req, res, next) => {
             }
         });
         (0, cache_1.invalidateCache)(`reviews:${listingId}`);
+        (0, ai_controller_1.invalidateReviewSummaryCache)(listingId);
         (0, cache_1.invalidateCache)("stats");
         res.status(201).json(review);
     }
@@ -51,8 +54,8 @@ const createReview = async (req, res, next) => {
 exports.createReview = createReview;
 const getListingReviews = async (req, res, next) => {
     try {
-        const listingId = Number(req.params.id);
-        if (!Number.isInteger(listingId) || listingId <= 0) {
+        const listingId = req.params.id;
+        if (!(0, ids_1.isUuid)(listingId)) {
             res.status(400).json({ message: "Invalid listing id" });
             return;
         }
@@ -61,7 +64,7 @@ const getListingReviews = async (req, res, next) => {
         const skip = (page - 1) * limit;
         const cacheKey = `reviews:${listingId}:${page}:${limit}`;
         const cached = (0, cache_1.getCache)(cacheKey);
-        if (cached) {
+        if (cached !== null) {
             res.json(cached);
             return;
         }
@@ -100,8 +103,8 @@ const getListingReviews = async (req, res, next) => {
 exports.getListingReviews = getListingReviews;
 const deleteReview = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) {
+        const id = req.params.id;
+        if (!(0, ids_1.isUuid)(id)) {
             res.status(400).json({ message: "Invalid review id" });
             return;
         }
@@ -112,6 +115,7 @@ const deleteReview = async (req, res, next) => {
         }
         await prismaReview.delete({ where: { id } });
         (0, cache_1.invalidateCache)(`reviews:${review.listingId}`);
+        (0, ai_controller_1.invalidateReviewSummaryCache)(review.listingId);
         (0, cache_1.invalidateCache)("stats");
         res.json({ message: "Review deleted successfully" });
     }

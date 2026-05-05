@@ -12,7 +12,7 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: "https://node-js-7e4x.onrender.com/api/v1",
+        url: "http://localhost:3000/api/v1", //https://node-js-7e4x.onrender.com/api/v1
         description: "PRODUCTION SERVER",
       },
     ],

@@ -2,7 +2,7 @@ type AppRole = "ADMIN" | "USER";
 type ApiRole = "HOST" | "GUEST";
 
 type ApiUser = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   username: string;
@@ -11,7 +11,7 @@ type ApiUser = {
 };
 
 type Listing = {
-  id: number;
+  id: string;
   title: string;
   location: string;
   pricePerNight: number;
@@ -21,7 +21,7 @@ type Listing = {
 };
 
 type Booking = {
-  id: number;
+  id: string;
   checkIn: string;
   checkOut: string;
   totalPrice: number;
@@ -31,19 +31,36 @@ type Booking = {
   };
 };
 
+type AuthResponse = {
+  token: string;
+  user: ApiUser;
+};
+
 type ListingsResponse = {
   data: Listing[];
 };
 
 type SessionUser = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   appRole: AppRole;
   apiRole: ApiRole;
+  token: string;
 };
 
 const toApiRole = (role: AppRole): ApiRole => (role === "ADMIN" ? "HOST" : "GUEST");
+
+const toAppRole = (role: ApiRole): AppRole => (role === "HOST" ? "ADMIN" : "USER");
+
+const getSessionToken = (): string | null => {
+  return sessionUser?.token ?? localStorage.getItem("airbnb-token");
+};
+
+const authHeaders = (): HeadersInit => {
+  const token = getSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const node = document.getElementById(id);
@@ -60,6 +77,11 @@ const refs = {
   showSignupBtn: $("show-signup-btn") as HTMLButtonElement,
   loginForm: $("login-form") as HTMLFormElement,
   signupForm: $("signup-form") as HTMLFormElement,
+  forgotForm: $("forgot-form") as HTMLFormElement,
+  showForgotBtn: $("show-forgot-btn") as HTMLButtonElement,
+  backToLoginBtn: $("back-to-login-btn") as HTMLButtonElement,
+  resetView: $("reset-view") as HTMLElement,
+  resetForm: $("reset-form") as HTMLFormElement,
   welcomeText: $("welcome-text") as HTMLHeadingElement,
   refreshDataBtn: $("refresh-data-btn") as HTMLButtonElement,
   logoutBtn: $("logout-btn") as HTMLButtonElement,
@@ -82,7 +104,8 @@ let users: ApiUser[] = [];
 let listings: Listing[] = [];
 let bookings: Booking[] = [];
 let sessionUser: SessionUser | null = null;
-let editingListingId: number | null = null;
+let editingListingId: string | null = null;
+let resetToken: string | null = null;
 
 const log = (title: string, payload: unknown): void => {
   const time = new Date().toLocaleTimeString();
@@ -105,17 +128,23 @@ const escapeHtml = (value: string): string => {
     .replace(/'/g, "&#39;");
 };
 
-const setAuthTab = (tab: "login" | "signup"): void => {
-  refs.showLoginBtn.classList.toggle("active", tab === "login");
-  refs.showSignupBtn.classList.toggle("active", tab === "signup");
-  refs.loginForm.classList.toggle("hidden", tab !== "login");
-  refs.signupForm.classList.toggle("hidden", tab !== "signup");
+const setAuthMode = (mode: "login" | "signup" | "forgot"): void => {
+  refs.showLoginBtn.classList.toggle("active", mode === "login");
+  refs.showSignupBtn.classList.toggle("active", mode === "signup");
+  refs.loginForm.classList.toggle("hidden", mode !== "login");
+  refs.signupForm.classList.toggle("hidden", mode !== "signup");
+  refs.forgotForm.classList.toggle("hidden", mode !== "forgot");
+  refs.showForgotBtn.classList.toggle("hidden", mode === "forgot");
 };
 
 const setViewBySession = (): void => {
   const loggedIn = Boolean(sessionUser);
-  refs.authView.classList.toggle("hidden", loggedIn);
+  const resetting = Boolean(resetToken) && !loggedIn;
+  refs.authView.classList.toggle("hidden", loggedIn || resetting);
+  refs.resetView.classList.toggle("hidden", !resetting);
   refs.appView.classList.toggle("hidden", !loggedIn);
+
+  if (resetting) return;
 
   if (!sessionUser) return;
 
@@ -229,7 +258,9 @@ const refreshDashboardData = async (): Promise<void> => {
   await fetchBookings();
 
   if (sessionUser.appRole === "ADMIN") {
-    const response = await fetch(`/users/${sessionUser.id}/listings`);
+    const response = await fetch(`/users/${sessionUser.id}/listings`, {
+      headers: authHeaders()
+    });
     const myListings = (await response.json()) as Listing[];
     renderMyListings(myListings);
     renderAdminBookings(bookings);
@@ -237,7 +268,9 @@ const refreshDashboardData = async (): Promise<void> => {
     return;
   }
 
-  const response = await fetch(`/users/${sessionUser.id}/bookings`);
+  const response = await fetch(`/users/${sessionUser.id}/bookings`, {
+    headers: authHeaders()
+  });
   const myBookings = (await response.json()) as Booking[];
   renderMyBookings(myBookings);
   log("User data refreshed", myBookings);
@@ -247,31 +280,38 @@ const login = async (event: SubmitEvent): Promise<void> => {
   event.preventDefault();
 
   const formData = new FormData(refs.loginForm);
-  const emailOrUsername = String(formData.get("email") ?? "").trim().toLowerCase();
-  const role = String(formData.get("role") ?? "USER") as AppRole;
+  const payload = {
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+    password: String(formData.get("password") ?? "")
+  };
 
-  await fetchUsers();
-
-  const baseMatch = users.find((candidate) => {
-    const byEmail = candidate.email.toLowerCase() === emailOrUsername;
-    const byUsername = candidate.username.toLowerCase() === emailOrUsername;
-    return byEmail || byUsername;
+  const response = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
   });
 
-  if (!baseMatch) {
-    log("Login failed", "No account found with this email or username. Try signup first.");
+  const data = (await response.json()) as AuthResponse | { message?: string };
+  if (!response.ok) {
+    log("Login failed", data);
     return;
   }
 
+  const auth = data as AuthResponse;
+
   sessionUser = {
-    id: baseMatch.id,
-    name: baseMatch.name,
-    email: baseMatch.email,
-    appRole: role,
-    apiRole: baseMatch.role
+    id: auth.user.id,
+    name: auth.user.name,
+    email: auth.user.email,
+    appRole: toAppRole(auth.user.role),
+    apiRole: auth.user.role,
+    token: auth.token
   };
 
   localStorage.setItem("airbnb-session", JSON.stringify(sessionUser));
+  localStorage.setItem("airbnb-token", auth.token);
   setViewBySession();
   await refreshDashboardData();
   log("Login success", sessionUser);
@@ -287,10 +327,11 @@ const signup = async (event: SubmitEvent): Promise<void> => {
     email: String(formData.get("email") ?? "").trim().toLowerCase(),
     username: String(formData.get("username") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim(),
+    password: String(formData.get("password") ?? ""),
     role: toApiRole(role)
   };
 
-  const response = await fetch("/users", {
+  const response = await fetch("/api/v1/auth/register", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -304,24 +345,111 @@ const signup = async (event: SubmitEvent): Promise<void> => {
     return;
   }
 
+  const loginResponse = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email: payload.email, password: payload.password })
+  });
+
+  const loginData = (await loginResponse.json()) as AuthResponse | { message?: string };
+  if (!loginResponse.ok) {
+    log("Auto login failed", loginData);
+    refs.signupForm.reset();
+    setAuthMode("login");
+    return;
+  }
+
+  const auth = loginData as AuthResponse;
+
   sessionUser = {
-    id: data.id,
-    name: data.name,
-    email: data.email,
-    appRole: role,
-    apiRole: data.role as ApiRole
+    id: auth.user.id,
+    name: auth.user.name,
+    email: auth.user.email,
+    appRole: toAppRole(auth.user.role),
+    apiRole: auth.user.role,
+    token: auth.token
   };
 
   localStorage.setItem("airbnb-session", JSON.stringify(sessionUser));
+  localStorage.setItem("airbnb-token", auth.token);
   refs.signupForm.reset();
   setViewBySession();
   await refreshDashboardData();
   log("Signup success", data);
 };
 
+const forgotPassword = async (event: SubmitEvent): Promise<void> => {
+  event.preventDefault();
+
+  const formData = new FormData(refs.forgotForm);
+  const payload = {
+    email: String(formData.get("email") ?? "").trim().toLowerCase()
+  };
+
+  const response = await fetch("/api/v1/auth/forgot-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    log("Forgot password failed", data);
+    return;
+  }
+
+  refs.forgotForm.reset();
+  setAuthMode("login");
+  log("Forgot password", data);
+};
+
+const resetPassword = async (event: SubmitEvent): Promise<void> => {
+  event.preventDefault();
+
+  if (!resetToken) {
+    log("Reset password failed", "Missing reset token");
+    return;
+  }
+
+  const formData = new FormData(refs.resetForm);
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (newPassword !== confirmPassword) {
+    log("Reset password failed", "Passwords do not match");
+    return;
+  }
+
+  const response = await fetch(`/api/v1/auth/reset-password/${resetToken}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ newPassword })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    log("Reset password failed", data);
+    return;
+  }
+
+  resetToken = null;
+  refs.resetForm.reset();
+  window.history.replaceState({}, "", "/app");
+  setAuthMode("login");
+  setViewBySession();
+  log("Reset password", data);
+};
+
 const logout = (): void => {
   sessionUser = null;
   localStorage.removeItem("airbnb-session");
+  localStorage.removeItem("airbnb-token");
   setViewBySession();
   refs.myBookings.innerHTML = "";
   refs.myListings.innerHTML = "";
@@ -366,7 +494,8 @@ const createListing = async (event: SubmitEvent): Promise<void> => {
   const response = await fetch(isEditing ? `/listings/${editingListingId}` : "/listings", {
     method: isEditing ? "PUT" : "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...authHeaders()
     },
     body: JSON.stringify(payload)
   });
@@ -382,12 +511,12 @@ const createListing = async (event: SubmitEvent): Promise<void> => {
   log(isEditing ? "Listing updated" : "Listing posted", data);
 };
 
-const startEditListing = (listingId: number): void => {
+const startEditListing = (listingId: string): void => {
   const listing = listings.find((item) => item.id === listingId);
   if (!listing) return;
 
   editingListingId = listingId;
-  (refs.createListingForm.elements.namedItem("listingId") as HTMLInputElement).value = String(listingId);
+  (refs.createListingForm.elements.namedItem("listingId") as HTMLInputElement).value = listingId;
   (refs.createListingForm.elements.namedItem("title") as HTMLInputElement).value = listing.title;
   (refs.createListingForm.elements.namedItem("location") as HTMLInputElement).value = listing.location;
   (refs.createListingForm.elements.namedItem("pricePerNight") as HTMLInputElement).value = String(listing.pricePerNight);
@@ -395,10 +524,13 @@ const startEditListing = (listingId: number): void => {
   refs.cancelEditBtn.classList.remove("hidden");
 };
 
-const deleteListing = async (listingId: number): Promise<void> => {
+const deleteListing = async (listingId: string): Promise<void> => {
   if (!sessionUser || sessionUser.appRole !== "ADMIN") return;
 
-  const response = await fetch(`/listings/${listingId}`, { method: "DELETE" });
+  const response = await fetch(`/listings/${listingId}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
   const data = await response.json();
   if (!response.ok) {
     log("Delete listing failed", data);
@@ -409,13 +541,14 @@ const deleteListing = async (listingId: number): Promise<void> => {
   log("Listing deleted", data);
 };
 
-const updateBookingStatus = async (bookingId: number, status: "CONFIRMED" | "CANCELLED"): Promise<void> => {
+const updateBookingStatus = async (bookingId: string, status: "CONFIRMED" | "CANCELLED"): Promise<void> => {
   if (!sessionUser || sessionUser.appRole !== "ADMIN") return;
 
   const response = await fetch(`/bookings/${bookingId}/status`, {
     method: "PATCH",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...authHeaders()
     },
     body: JSON.stringify({ status })
   });
@@ -430,14 +563,13 @@ const updateBookingStatus = async (bookingId: number, status: "CONFIRMED" | "CAN
   log(`Booking ${status.toLowerCase()}`, data);
 };
 
-const createBooking = async (listingId: number, checkIn: string, checkOut: string): Promise<void> => {
+const createBooking = async (listingId: string, checkIn: string, checkOut: string): Promise<void> => {
   if (!sessionUser || sessionUser.appRole !== "USER") {
     log("Create booking blocked", "Only user can create bookings");
     return;
   }
 
   const payload = {
-    guestId: sessionUser.id,
     listingId,
     checkIn,
     checkOut
@@ -446,7 +578,8 @@ const createBooking = async (listingId: number, checkIn: string, checkOut: strin
   const response = await fetch("/bookings", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...authHeaders()
     },
     body: JSON.stringify(payload)
   });
@@ -465,7 +598,7 @@ const submitBookingForm = async (event: SubmitEvent): Promise<void> => {
   event.preventDefault();
 
   const formData = new FormData(refs.createBookingForm);
-  const listingId = Number(formData.get("listingId") ?? 0);
+  const listingId = String(formData.get("listingId") ?? "");
   const checkIn = String(formData.get("checkIn") ?? "");
   const checkOut = String(formData.get("checkOut") ?? "");
 
@@ -477,7 +610,7 @@ const quickBookFromCard = async (event: Event): Promise<void> => {
   const target = event.target as HTMLElement;
   if (!target.classList.contains("quick-book")) return;
 
-  const listingId = Number(target.getAttribute("data-listing-id") ?? 0);
+  const listingId = target.getAttribute("data-listing-id") ?? "";
   const today = new Date();
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const toDateOnly = (date: Date): string => date.toISOString().slice(0, 10);
@@ -491,26 +624,41 @@ const restoreSession = (): void => {
 
   try {
     const parsed = JSON.parse(saved) as SessionUser;
-    if (parsed?.id && parsed?.apiRole && parsed?.name) {
+    if (parsed?.id && parsed?.apiRole && parsed?.name && parsed?.token) {
       sessionUser = parsed;
+      localStorage.setItem("airbnb-token", parsed.token);
     }
   } catch {
     localStorage.removeItem("airbnb-session");
+    localStorage.removeItem("airbnb-token");
   }
 };
 
 const bootstrap = async (): Promise<void> => {
-  setAuthTab("login");
+  const url = new URL(window.location.href);
+  resetToken = url.searchParams.get("resetToken");
+  if (!resetToken) {
+    setAuthMode("login");
+  }
+
   restoreSession();
   setViewBySession();
 
-  refs.showLoginBtn.addEventListener("click", () => setAuthTab("login"));
-  refs.showSignupBtn.addEventListener("click", () => setAuthTab("signup"));
+  refs.showLoginBtn.addEventListener("click", () => setAuthMode("login"));
+  refs.showSignupBtn.addEventListener("click", () => setAuthMode("signup"));
+  refs.showForgotBtn.addEventListener("click", () => setAuthMode("forgot"));
+  refs.backToLoginBtn.addEventListener("click", () => setAuthMode("login"));
   refs.loginForm.addEventListener("submit", (event) => {
     login(event).catch((error: unknown) => log("Login error", String(error)));
   });
   refs.signupForm.addEventListener("submit", (event) => {
     signup(event).catch((error: unknown) => log("Signup error", String(error)));
+  });
+  refs.forgotForm.addEventListener("submit", (event) => {
+    forgotPassword(event).catch((error: unknown) => log("Forgot password error", String(error)));
+  });
+  refs.resetForm.addEventListener("submit", (event) => {
+    resetPassword(event).catch((error: unknown) => log("Reset password error", String(error)));
   });
   refs.logoutBtn.addEventListener("click", logout);
   refs.refreshDataBtn.addEventListener("click", () => {
@@ -528,7 +676,7 @@ const bootstrap = async (): Promise<void> => {
   });
   refs.myListings.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    const listingId = Number(target.getAttribute("data-listing-id") ?? 0);
+    const listingId = target.getAttribute("data-listing-id") ?? "";
     if (target.classList.contains("edit-listing-btn") && listingId) {
       startEditListing(listingId);
     }
@@ -538,7 +686,7 @@ const bootstrap = async (): Promise<void> => {
   });
   refs.adminBookings.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    const bookingId = Number(target.getAttribute("data-booking-id") ?? 0);
+    const bookingId = target.getAttribute("data-booking-id") ?? "";
     if (target.classList.contains("booking-accept-btn") && bookingId) {
       updateBookingStatus(bookingId, "CONFIRMED").catch((error: unknown) => log("Accept booking error", String(error)));
     }

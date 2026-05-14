@@ -9,10 +9,12 @@ import { setupSwagger } from "./config/swagger.js";
 import { generalLimiter, strictLimiter } from "./middlewares/rateLimiter";
 import { deprecateV1 } from "./middlewares/deprecation.middleware";
 import { errorHandler } from "./middlewares/error.middleware";
+import cors from "cors";
 
 const app = express();
 const PORT = Number(process.env["PORT"]) || 3000;
 
+app.use(cors());
 app.use(process.env["NODE_ENV"] === "production" ? morgan("combined") : morgan("dev"));
 
 app.use(express.json());

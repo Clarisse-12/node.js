@@ -187,7 +187,7 @@ import { authenticate, requireGuest } from "../../middlewares/auth.middleware";
 
 const bookingsRouter = Router();
 
-bookingsRouter.get("/", getAllBookings);
+bookingsRouter.get("/", authenticate, getAllBookings);
 bookingsRouter.get("/users/:userId", getUserBookings);
 bookingsRouter.get("/:id", getBookingById);
 bookingsRouter.post("/", authenticate, requireGuest, createBooking);

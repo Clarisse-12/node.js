@@ -7,7 +7,6 @@ exports.deleteReview = exports.getListingReviews = exports.createReview = void 0
 const prisma_1 = __importDefault(require("../config/prisma"));
 const cache_1 = require("../config/cache");
 const ids_1 = require("../utils/ids");
-const ai_controller_1 = require("./ai.controller");
 const prismaReview = prisma_1.default.review;
 const createReview = async (req, res, next) => {
     try {
@@ -43,7 +42,6 @@ const createReview = async (req, res, next) => {
             }
         });
         (0, cache_1.invalidateCache)(`reviews:${listingId}`);
-        (0, ai_controller_1.invalidateReviewSummaryCache)(listingId);
         (0, cache_1.invalidateCache)("stats");
         res.status(201).json(review);
     }
@@ -115,7 +113,6 @@ const deleteReview = async (req, res, next) => {
         }
         await prismaReview.delete({ where: { id } });
         (0, cache_1.invalidateCache)(`reviews:${review.listingId}`);
-        (0, ai_controller_1.invalidateReviewSummaryCache)(review.listingId);
         (0, cache_1.invalidateCache)("stats");
         res.json({ message: "Review deleted successfully" });
     }

@@ -7,6 +7,7 @@ import prisma from "../config/prisma";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { sendEmail } from "../config/email.js";
 import { passwordResetEmail, passwordResetSuccessEmail, welcomeEmail } from "../templates/emails.js";
+import { getOptimizedUrl } from "../config/cloudinary.js";
 
 const getJwtSecret = (): string => {
   const secret = process.env["JWT_SECRET"];
@@ -46,21 +47,22 @@ export const register = async (req: AuthRequest, res: Response, next: NextFuncti
       username?: string;
       phone?: string;
       password?: string;
-      role?: Role;
+      role?: string;
     };
 
-    if (!name || !email || !username || !phone || !password || !role) {
-      res.status(400).json({ message: "Missing required fields: name, email, username, phone, password, role" });
-      return;
-    }
-
-    if (!isRole(role)) {
-      res.status(400).json({ message: "Role must be HOST or GUEST" });
+    if (!name || !email || !username || !phone || !password) {
+      res.status(400).json({ message: "Missing required fields: name, email, username, phone, password" });
       return;
     }
 
     if (password.length < 8) {
       res.status(400).json({ message: "Password must be at least 8 characters" });
+      return;
+    }
+
+    const normalizedRole = typeof role === "string" ? role.toUpperCase() : undefined;
+    if (normalizedRole !== undefined && !isRole(normalizedRole)) {
+      res.status(400).json({ message: "Invalid role. Allowed roles: guest, host" });
       return;
     }
 
@@ -72,6 +74,8 @@ export const register = async (req: AuthRequest, res: Response, next: NextFuncti
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const roleToCreate = (normalizedRole as Role | undefined) ?? Role.GUEST;
+
     const user = await prisma.user.create({
       data: {
         name,
@@ -79,14 +83,14 @@ export const register = async (req: AuthRequest, res: Response, next: NextFuncti
         username,
         phone,
         password: hashedPassword,
-        role
+        role: roleToCreate
       }
     });
 
 
     res.status(201).json(sanitizeUser(user));
 
-    void sendEmail(email, "Welcome to Airbnb!", welcomeEmail(name, role)).catch((emailError) => {
+    void sendEmail(email, "Welcome to Airbnb!", welcomeEmail(name, roleToCreate)).catch((emailError) => {
       console.warn("Welcome email failed", {
         operation: "register",
         message: emailError instanceof Error ? emailError.message : emailError
@@ -109,6 +113,11 @@ export const login = async (req: AuthRequest, res: Response, next: NextFunction)
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       res.status(401).json({ message: "Invalid credentials" });
+      return;
+    }
+
+    if (!user.isActive) {
+      res.status(403).json({ message: "Account disabled" });
       return;
     }
 
@@ -152,11 +161,26 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
       return;
     }
 
+    if (user.role === "ADMIN") {
+      res.json(sanitizeUser(user));
+      return;
+    }
+
     if (user.role === Role.HOST) {
       const host = await prisma.user.findUnique({
         where: { id: user.id },
         include: {
-          listings: true
+          listings: {
+            include: {
+              photos: {
+                select: {
+                  id: true,
+                  url: true,
+                  publicId: true
+                }
+              }
+            }
+          }
         }
       });
 
@@ -165,7 +189,18 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
         return;
       }
 
-      res.json(sanitizeUser(host));
+      res.json(
+        sanitizeUser({
+          ...host,
+          listings: host.listings.map((listing) => ({
+            ...listing,
+            photos: listing.photos.map((photo) => ({
+              ...photo,
+              optimizedUrl: getOptimizedUrl(photo.url, 600, 400)
+            }))
+          }))
+        })
+      );
       return;
     }
 

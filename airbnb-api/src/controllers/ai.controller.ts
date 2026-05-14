@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { JsonOutputParser, StringOutputParser } from "@langchain/core/output_parsers";
-import llm from ".././config/ai.js";
+import llm from "../config/ai.js";
 import  prisma  from "../config/prisma.js";
 
 // ─── Natural Language Search ──────────────────────────────────────────────────
@@ -148,7 +148,7 @@ If asked about specific listings, refer to the context provided.`,
   ["human", "{input}"],
 ]);
 
-const chatChain = chatPrompt.pipe(llm);
+const chatChain = chatPrompt.pipe(llm).pipe(new StringOutputParser());
 
 const chainWithHistory = new RunnableWithMessageHistory({
   runnable: chatChain,

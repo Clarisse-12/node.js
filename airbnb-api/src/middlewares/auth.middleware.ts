@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { Role } from "@prisma/client";
+import prisma from "../config/prisma";
 
-type Role = "HOST" | "GUEST";
+type TokenRole = "HOST" | "GUEST" | "ADMIN";
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -33,15 +35,32 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       return;
     }
 
-    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & { userId?: string; role?: Role };
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & { userId?: string; role?: TokenRole };
     if (!decoded.userId || !decoded.role) {
       res.status(401).json({ message: "Invalid or expired token" });
       return;
     }
 
-    req.userId = decoded.userId;
-    req.role = decoded.role;
-    next();
+    prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, isActive: true }
+    }).then((user) => {
+      if (!user) {
+        res.status(401).json({ message: "Invalid or expired token" });
+        return;
+      }
+
+      if (!user.isActive) {
+        res.status(403).json({ message: "Account disabled" });
+        return;
+      }
+
+      req.userId = decoded.userId;
+      req.role = decoded.role;
+      next();
+    }).catch(() => {
+      res.status(401).json({ message: "Invalid or expired token" });
+    });
   } catch {
     res.status(401).json({ message: "Invalid or expired token" });
   }
@@ -58,6 +77,15 @@ export const requireHost = (req: AuthRequest, res: Response, next: NextFunction)
 
 export const requireGuest = (req: AuthRequest, res: Response, next: NextFunction): void => {
   if (req.role !== "GUEST") {
+    res.status(403).json({ message: "Forbidden" });
+    return;
+  }
+
+  next();
+};
+
+export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (req.role !== "ADMIN") {
     res.status(403).json({ message: "Forbidden" });
     return;
   }

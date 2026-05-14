@@ -173,9 +173,6 @@ aiRouter.post("/description",generateListingDescription);
  *             properties:
  *               sessionId:
  *                 type: string
- *               listingId:
- *                 type: string
- *                 format: uuid
  *               message:
  *                 type: string
  *     responses:

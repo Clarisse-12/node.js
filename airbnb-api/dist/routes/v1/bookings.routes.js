@@ -179,7 +179,7 @@ const auth_middleware_1 = require("../../middlewares/auth.middleware");
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 const bookingsRouter = (0, express_1.Router)();
-bookingsRouter.get("/", bookings_controller_1.getAllBookings);
+bookingsRouter.get("/", auth_middleware_1.authenticate, bookings_controller_1.getAllBookings);
 bookingsRouter.get("/users/:userId", bookings_controller_1.getUserBookings);
 bookingsRouter.get("/:id", bookings_controller_1.getBookingById);
 bookingsRouter.post("/", auth_middleware_1.authenticate, auth_middleware_1.requireGuest, bookings_controller_1.createBooking);

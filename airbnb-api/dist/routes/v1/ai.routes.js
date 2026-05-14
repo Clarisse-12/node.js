@@ -1,9 +1,93 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const auth_middleware_1 = require("../../middlewares/auth.middleware");
 const ai_controller_1 = require("../../controllers/ai.controller");
 const aiRouter = (0, express_1.Router)();
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     AiSearchInput:
+ *       type: object
+ *       required:
+ *         - query
+ *       properties:
+ *         query:
+ *           type: string
+ *           example: Find a villa in Miami for 4 guests under 300 dollars
+ *     AiSearchResponse:
+ *       type: object
+ *       properties:
+ *         query:
+ *           type: string
+ *         extractedfilters:
+ *           type: object
+ *           properties:
+ *             location:
+ *               type: string
+ *             type:
+ *               type: string
+ *               enum: [APARTMENT, HOUSE, VILLA, CABIN]
+ *             guests:
+ *               type: number
+ *             maxPrice:
+ *               type: number
+ *         results:
+ *           type: array
+ *           items:
+ *             type: object
+ *         count:
+ *           type: integer
+ *     AiDescriptionInput:
+ *       type: object
+ *       required:
+ *         - title
+ *         - location
+ *         - type
+ *         - guests
+ *         - amenities
+ *         - pricePerNight
+ *       properties:
+ *         title:
+ *           type: string
+ *         location:
+ *           type: string
+ *         type:
+ *           type: string
+ *           enum: [APARTMENT, HOUSE, VILLA, CABIN]
+ *         guests:
+ *           type: integer
+ *         amenities:
+ *           oneOf:
+ *             - type: array
+ *               items:
+ *                 type: string
+ *             - type: string
+ *         pricePerNight:
+ *           type: number
+ *     AiDescriptionResponse:
+ *       type: object
+ *       properties:
+ *         description:
+ *           type: string
+ *     AiChatInput:
+ *       type: object
+ *       required:
+ *         - message
+ *         - sessionId
+ *       properties:
+ *         message:
+ *           type: string
+ *         sessionId:
+ *           type: string
+ *     AiChatResponse:
+ *       type: object
+ *       properties:
+ *         reply:
+ *           type: string
+ *         sessionId:
+ *           type: string
+ */
 /**
  * @swagger
  * /ai/search:
@@ -38,36 +122,31 @@ const aiRouter = (0, express_1.Router)();
  *       400:
  *         description: Missing or vague query
  */
-aiRouter.post("/search", ai_controller_1.smartListingSearch);
+aiRouter.post("/search", ai_controller_1.naturalLanguageSearch);
 /**
  * @swagger
- * /ai/listings/{id}/generate-description:
+ * /ai/description:
  *   post:
+ *     summary: Generate an Airbnb listing description
  *     tags: [AI]
- *     summary: Generate a listing description using AI
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
  *     requestBody:
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               tone:
- *                 type: string
- *                 enum: [professional, casual, luxury]
+ *             $ref: '#/components/schemas/AiDescriptionInput'
  *     responses:
  *       200:
- *         description: Description generated
+ *         description: Description generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AiDescriptionResponse'
+ *       400:
+ *         description: Missing required fields
+
  */
-aiRouter.post("/listings/:id/generate-description", auth_middleware_1.authenticate, ai_controller_1.generateListingDescription);
+aiRouter.post("/description", ai_controller_1.generateListingDescription);
 /**
  * @swagger
  * /ai/chat:
@@ -84,16 +163,13 @@ aiRouter.post("/listings/:id/generate-description", auth_middleware_1.authentica
  *             properties:
  *               sessionId:
  *                 type: string
- *               listingId:
- *                 type: string
- *                 format: uuid
  *               message:
  *                 type: string
  *     responses:
  *       200:
  *         description: Chat reply
  */
-aiRouter.post("/chat", ai_controller_1.guestChatbot);
+aiRouter.post("/chat", ai_controller_1.chat);
 /**
  * @swagger
  * /ai/recommend:
@@ -106,23 +182,4 @@ aiRouter.post("/chat", ai_controller_1.guestChatbot);
  *       200:
  *         description: Recommendations generated
  */
-aiRouter.post("/recommend", auth_middleware_1.authenticate, ai_controller_1.recommendListings);
-/**
- * @swagger
- * /ai/listings/{id}/review-summary:
- *   get:
- *     tags: [AI]
- *     summary: AI summary of listing reviews
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     responses:
- *       200:
- *         description: Review summary generated
- */
-aiRouter.get("/listings/:id/review-summary", ai_controller_1.reviewSummary);
 exports.default = aiRouter;

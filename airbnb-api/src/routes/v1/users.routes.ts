@@ -7,9 +7,12 @@ import {
   getUserById,
   getUserStats,
   getUserListings,
-  updateUser
+  updateUser,
+  requestHost,
+  listHostRequests,
+  handleHostRequest
 } from "../../controllers/users.controller";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, requireAdmin, requireHost } from "../../middlewares/auth.middleware";
 
 /**
  * @swagger
@@ -519,12 +522,22 @@ import { authenticate } from "../../middlewares/auth.middleware";
 
 const usersRouter = Router();
 
-usersRouter.get("/stats", getUserStats);
-usersRouter.get("/", getAllUsers);
-usersRouter.get("/:id", getUserById);
-usersRouter.get("/:id/listings", getUserListings);
-usersRouter.get("/:id/bookings", getUserBookings);
+usersRouter.get("/stats", authenticate, requireAdmin, getUserStats);
+usersRouter.get("/", authenticate, requireAdmin, getAllUsers);
+
+// Host request management
+usersRouter.get("/host-requests", authenticate, requireHost, listHostRequests);
+usersRouter.patch("/host-requests/:requestId", authenticate, requireHost, handleHostRequest);
+
 usersRouter.post("/", createUser);
-usersRouter.put("/:id", updateUser);
-usersRouter.delete("/:id", deleteUser);
+
+// Request to become host (authenticated user)
+usersRouter.post("/:id/request-host", authenticate, requestHost);
+
+usersRouter.get("/:id", authenticate, getUserById);
+usersRouter.get("/:id/listings", authenticate, getUserListings);
+usersRouter.get("/:id/bookings", authenticate, getUserBookings);
+usersRouter.put("/:id", authenticate, updateUser);
+usersRouter.delete("/:id", authenticate, deleteUser);
+
 export default usersRouter;

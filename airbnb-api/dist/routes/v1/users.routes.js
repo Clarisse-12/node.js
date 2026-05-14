@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const users_controller_1 = require("../../controllers/users.controller");
+const auth_middleware_1 = require("../../middlewares/auth.middleware");
 /**
  * @swagger
  * /users:
@@ -508,12 +509,17 @@ const users_controller_1 = require("../../controllers/users.controller");
  *           $ref: '#/components/schemas/User'
  */
 const usersRouter = (0, express_1.Router)();
-usersRouter.get("/stats", users_controller_1.getUserStats);
-usersRouter.get("/", users_controller_1.getAllUsers);
-usersRouter.get("/:id", users_controller_1.getUserById);
-usersRouter.get("/:id/listings", users_controller_1.getUserListings);
-usersRouter.get("/:id/bookings", users_controller_1.getUserBookings);
+usersRouter.get("/stats", auth_middleware_1.authenticate, auth_middleware_1.requireAdmin, users_controller_1.getUserStats);
+usersRouter.get("/", auth_middleware_1.authenticate, auth_middleware_1.requireAdmin, users_controller_1.getAllUsers);
+// Host request management
+usersRouter.get("/host-requests", auth_middleware_1.authenticate, auth_middleware_1.requireHost, users_controller_1.listHostRequests);
+usersRouter.patch("/host-requests/:requestId", auth_middleware_1.authenticate, auth_middleware_1.requireHost, users_controller_1.handleHostRequest);
 usersRouter.post("/", users_controller_1.createUser);
-usersRouter.put("/:id", users_controller_1.updateUser);
-usersRouter.delete("/:id", users_controller_1.deleteUser);
+// Request to become host (authenticated user)
+usersRouter.post("/:id/request-host", auth_middleware_1.authenticate, users_controller_1.requestHost);
+usersRouter.get("/:id", auth_middleware_1.authenticate, users_controller_1.getUserById);
+usersRouter.get("/:id/listings", auth_middleware_1.authenticate, users_controller_1.getUserListings);
+usersRouter.get("/:id/bookings", auth_middleware_1.authenticate, users_controller_1.getUserBookings);
+usersRouter.put("/:id", auth_middleware_1.authenticate, users_controller_1.updateUser);
+usersRouter.delete("/:id", auth_middleware_1.authenticate, users_controller_1.deleteUser);
 exports.default = usersRouter;

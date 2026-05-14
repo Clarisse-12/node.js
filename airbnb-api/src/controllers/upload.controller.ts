@@ -2,7 +2,7 @@ import type { NextFunction, Response } from "express";
 import { deleteFromCloudinary, getOptimizedUrl, uploadToCloudinary } from "../config/cloudinary.js";
 import prisma from "../config/prisma.js";
 import { AuthRequest } from "../middlewares/auth.middleware.js";
-import { isUuid } from "../utils/ids";
+import { isUuid } from "../utils/ids.js";
 
 const sanitizeUser = <T extends Record<string, unknown>>(user: T): T => {
   const safeUser = { ...user } as Record<string, unknown>;

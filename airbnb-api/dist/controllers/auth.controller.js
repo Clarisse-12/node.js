@@ -11,6 +11,7 @@ const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const email_js_1 = require("../config/email.js");
 const emails_js_1 = require("../templates/emails.js");
+const cloudinary_js_1 = require("../config/cloudinary.js");
 const getJwtSecret = () => {
     const secret = process.env["JWT_SECRET"];
     if (!secret) {
@@ -38,16 +39,17 @@ const isRole = (value) => value === client_1.Role.HOST || value === client_1.Rol
 const register = async (req, res, next) => {
     try {
         const { name, email, username, phone, password, role } = req.body;
-        if (!name || !email || !username || !phone || !password || !role) {
-            res.status(400).json({ message: "Missing required fields: name, email, username, phone, password, role" });
-            return;
-        }
-        if (!isRole(role)) {
-            res.status(400).json({ message: "Role must be HOST or GUEST" });
+        if (!name || !email || !username || !phone || !password) {
+            res.status(400).json({ message: "Missing required fields: name, email, username, phone, password" });
             return;
         }
         if (password.length < 8) {
             res.status(400).json({ message: "Password must be at least 8 characters" });
+            return;
+        }
+        const normalizedRole = typeof role === "string" ? role.toUpperCase() : undefined;
+        if (normalizedRole !== undefined && !isRole(normalizedRole)) {
+            res.status(400).json({ message: "Invalid role. Allowed roles: guest, host" });
             return;
         }
         const existingUser = await prisma_1.default.user.findUnique({ where: { email } });
@@ -56,6 +58,7 @@ const register = async (req, res, next) => {
             return;
         }
         const hashedPassword = await bcrypt_1.default.hash(password, 10);
+        const roleToCreate = normalizedRole ?? client_1.Role.GUEST;
         const user = await prisma_1.default.user.create({
             data: {
                 name,
@@ -63,11 +66,11 @@ const register = async (req, res, next) => {
                 username,
                 phone,
                 password: hashedPassword,
-                role
+                role: roleToCreate
             }
         });
         res.status(201).json(sanitizeUser(user));
-        void (0, email_js_1.sendEmail)(email, "Welcome to Airbnb!", (0, emails_js_1.welcomeEmail)(name, role)).catch((emailError) => {
+        void (0, email_js_1.sendEmail)(email, "Welcome to Airbnb!", (0, emails_js_1.welcomeEmail)(name, roleToCreate)).catch((emailError) => {
             console.warn("Welcome email failed", {
                 operation: "register",
                 message: emailError instanceof Error ? emailError.message : emailError
@@ -89,6 +92,10 @@ const login = async (req, res, next) => {
         const user = await prisma_1.default.user.findUnique({ where: { email } });
         if (!user) {
             res.status(401).json({ message: "Invalid credentials" });
+            return;
+        }
+        if (!user.isActive) {
+            res.status(403).json({ message: "Account disabled" });
             return;
         }
         const userPassword = user.password;
@@ -122,18 +129,41 @@ const getMe = async (req, res, next) => {
             res.status(404).json({ message: "User not found" });
             return;
         }
+        if (user.role === "ADMIN") {
+            res.json(sanitizeUser(user));
+            return;
+        }
         if (user.role === client_1.Role.HOST) {
             const host = await prisma_1.default.user.findUnique({
                 where: { id: user.id },
                 include: {
-                    listings: true
+                    listings: {
+                        include: {
+                            photos: {
+                                select: {
+                                    id: true,
+                                    url: true,
+                                    publicId: true
+                                }
+                            }
+                        }
+                    }
                 }
             });
             if (!host) {
                 res.status(404).json({ message: "User not found" });
                 return;
             }
-            res.json(sanitizeUser(host));
+            res.json(sanitizeUser({
+                ...host,
+                listings: host.listings.map((listing) => ({
+                    ...listing,
+                    photos: listing.photos.map((photo) => ({
+                        ...photo,
+                        optimizedUrl: (0, cloudinary_js_1.getOptimizedUrl)(photo.url, 600, 400)
+                    }))
+                }))
+            }));
             return;
         }
         const guest = await prisma_1.default.user.findUnique({

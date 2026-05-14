@@ -9,6 +9,7 @@ const prisma_1 = __importDefault(require("../config/prisma"));
 const email_js_1 = require("../config/email.js");
 const emails_js_1 = require("../templates/emails.js");
 const ids_1 = require("../utils/ids");
+const cloudinary_js_1 = require("../config/cloudinary.js");
 const isBookingStatus = (value) => {
     return Object.values(client_1.BookingStatus).includes(value);
 };
@@ -21,7 +22,7 @@ const formatDate = (value) => {
         day: "numeric"
     });
 };
-const bookingCancellationTemplate = (guestName, listingTitle, checkIn, checkOut) => {
+const bookingCancellationTemplate = (guestName, listingTitle, checkIn, checkOut, reason) => {
     return `
     <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 640px; margin: 0 auto; line-height: 1.5;">
       <h2 style="color: #FF5A5F; margin-bottom: 16px;">Booking Cancelled</h2>
@@ -30,6 +31,7 @@ const bookingCancellationTemplate = (guestName, listingTitle, checkIn, checkOut)
         <p>Your booking for <strong>${listingTitle}</strong> has been cancelled.</p>
         <p><strong>Check-in:</strong> ${checkIn}</p>
         <p><strong>Check-out:</strong> ${checkOut}</p>
+        ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
         <p>You can explore other listings anytime.</p>
       </div>
     </div>
@@ -53,11 +55,33 @@ const parseIsoDateOnly = (value) => {
 };
 const getAllBookings = async (req, res, next) => {
     try {
+        // This endpoint requires authentication
+        if (!req.userId || !req.role) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
         const page = Math.max(1, Number(req.query.page) || 1);
         const limit = Math.max(1, Number(req.query.limit) || 10);
         const skip = (page - 1) * limit;
+        let where = {};
+        // If HOST, show bookings for their listings only
+        if (req.role === "HOST") {
+            where = {
+                listing: {
+                    hostId: req.userId
+                }
+            };
+        }
+        // If GUEST, show their own bookings only
+        else if (req.role === "GUEST") {
+            where = { guestId: req.userId };
+        }
+        else if (req.role === "ADMIN") {
+            where = {};
+        }
         const [bookings, total] = await Promise.all([
             prisma_1.default.booking.findMany({
+                where,
                 skip,
                 take: limit,
                 include: {
@@ -69,15 +93,30 @@ const getAllBookings = async (req, res, next) => {
                     listing: {
                         select: {
                             title: true,
-                            location: true
+                            location: true,
+                            photos: {
+                                select: {
+                                    url: true
+                                }
+                            }
                         }
                     }
                 }
             }),
-            prisma_1.default.booking.count()
+            prisma_1.default.booking.count({ where })
         ]);
+        const bookingsWithOptimized = bookings.map(booking => ({
+            ...booking,
+            listing: booking.listing ? {
+                ...booking.listing,
+                photos: booking.listing.photos.map(photo => ({
+                    url: photo.url,
+                    optimizedUrl: (0, cloudinary_js_1.getOptimizedUrl)(photo.url, 80, 60)
+                }))
+            } : booking.listing
+        }));
         res.json({
-            data: bookings,
+            data: bookingsWithOptimized,
             meta: {
                 total,
                 page,
@@ -102,14 +141,32 @@ const getBookingById = async (req, res, next) => {
             where: { id },
             include: {
                 guest: true,
-                listing: true
+                listing: {
+                    include: {
+                        photos: {
+                            select: {
+                                url: true
+                            }
+                        }
+                    }
+                }
             }
         });
         if (!booking) {
             res.status(404).json({ message: "Booking not found" });
             return;
         }
-        res.json(booking);
+        const bookingWithOptimized = {
+            ...booking,
+            listing: booking.listing ? {
+                ...booking.listing,
+                photos: booking.listing.photos.map(photo => ({
+                    url: photo.url,
+                    optimizedUrl: (0, cloudinary_js_1.getOptimizedUrl)(photo.url, 900, 600)
+                }))
+            } : booking.listing
+        };
+        res.json(bookingWithOptimized);
     }
     catch (error) {
         next({ error, operation: "getBookingById" });
@@ -241,21 +298,82 @@ const updateBookingStatus = async (req, res, next) => {
             res.status(400).json({ message: "Invalid booking id" });
             return;
         }
-        const { status } = req.body;
+        const { status, reason } = req.body;
         if (!isBookingStatus(status)) {
             res.status(400).json({ message: "Invalid booking status" });
             return;
         }
-        const existing = await prisma_1.default.booking.findFirst({ where: { id } });
+        if (status === client_1.BookingStatus.CANCELLED && !String(reason || "").trim()) {
+            res.status(400).json({ message: "Cancellation reason is required" });
+            return;
+        }
+        if (!req.userId) {
+            res.status(401).json({ message: "Invalid or expired token" });
+            return;
+        }
+        if (req.role !== "HOST" && req.role !== "ADMIN") {
+            res.status(403).json({ message: "Only hosts can update booking status" });
+            return;
+        }
+        const existing = await prisma_1.default.booking.findFirst({
+            where: { id },
+            include: {
+                guest: {
+                    select: {
+                        email: true,
+                        name: true
+                    }
+                },
+                listing: {
+                    select: {
+                        title: true,
+                        hostId: true
+                    }
+                }
+            }
+        });
         if (!existing) {
             res.status(404).json({ message: "Booking not found" });
             return;
         }
+        if (req.role === "HOST" && existing.listing.hostId !== req.userId) {
+            res.status(403).json({ message: "You can only manage bookings for your own listings" });
+            return;
+        }
+        if (existing.status === client_1.BookingStatus.CANCELLED && status !== client_1.BookingStatus.CANCELLED) {
+            res.status(400).json({ message: "Cancelled bookings cannot be updated" });
+            return;
+        }
         const booking = await prisma_1.default.booking.update({
             where: { id },
-            data: { status }
+            data: {
+                status,
+                cancellationReason: status === client_1.BookingStatus.CANCELLED ? String(reason).trim() : existing.cancellationReason,
+                cancelledByRole: status === client_1.BookingStatus.CANCELLED ? client_1.BookingCancelledBy.HOST : existing.cancelledByRole
+            },
+            include: {
+                guest: {
+                    select: {
+                        email: true,
+                        name: true
+                    }
+                },
+                listing: {
+                    select: {
+                        title: true
+                    }
+                }
+            }
         });
         res.json(booking);
+        if (status === client_1.BookingStatus.CANCELLED) {
+            void (0, email_js_1.sendEmail)(booking.guest.email, "Your booking has been cancelled", bookingCancellationTemplate(booking.guest.name, booking.listing.title, formatDate(existing.checkIn), formatDate(existing.checkOut), booking.cancellationReason || undefined)).catch((emailError) => {
+                console.warn("Booking cancellation email failed", {
+                    operation: "updateBookingStatus",
+                    message: emailError instanceof Error ? emailError.message : emailError
+                });
+            });
+        }
     }
     catch (error) {
         next({ error, operation: "updateBookingStatus" });
@@ -278,38 +396,64 @@ const deleteBooking = async (req, res, next) => {
             res.status(401).json({ message: "Invalid or expired token" });
             return;
         }
-        if (existing.guestId !== req.userId) {
-            res.status(403).json({ message: "You can only cancel your own bookings" });
-            return;
-        }
-        if (existing.status === client_1.BookingStatus.CANCELLED) {
-            res.status(400).json({ message: "Booking is already cancelled" });
-            return;
-        }
-        const booking = await prisma_1.default.booking.update({
-            where: { id },
-            data: { status: client_1.BookingStatus.CANCELLED },
-            include: {
-                guest: {
-                    select: {
-                        email: true,
-                        name: true
-                    }
+        // fetch listing + host info
+        const listing = await prisma_1.default.listing.findUnique({ where: { id: existing.listingId }, include: { host: { select: { id: true, email: true, name: true } } } });
+        // If the requester is the guest -> perform cancellation (set status CANCELLED)
+        if (existing.guestId === req.userId) {
+            if (existing.status === client_1.BookingStatus.CANCELLED) {
+                res.status(400).json({ message: "Booking is already cancelled" });
+                return;
+            }
+            const { reason } = req.body;
+            if (!String(reason || "").trim()) {
+                res.status(400).json({ message: "Cancellation reason is required" });
+                return;
+            }
+            const booking = await prisma_1.default.booking.update({
+                where: { id },
+                data: {
+                    status: client_1.BookingStatus.CANCELLED,
+                    cancellationReason: String(reason).trim(),
+                    cancelledByRole: client_1.BookingCancelledBy.GUEST
                 },
-                listing: {
-                    select: {
-                        title: true
+                include: {
+                    guest: {
+                        select: {
+                            email: true,
+                            name: true
+                        }
+                    },
+                    listing: {
+                        select: {
+                            title: true
+                        }
                     }
                 }
-            }
-        });
-        res.json(booking);
-        void (0, email_js_1.sendEmail)(booking.guest.email, "Your booking has been cancelled", bookingCancellationTemplate(booking.guest.name, booking.listing.title, formatDate(existing.checkIn), formatDate(existing.checkOut))).catch((emailError) => {
-            console.warn("Booking cancellation email failed", {
-                operation: "deleteBooking",
-                message: emailError instanceof Error ? emailError.message : emailError
             });
-        });
+            res.json(booking);
+            // notify guest
+            void (0, email_js_1.sendEmail)(booking.guest.email, "Your booking has been cancelled", bookingCancellationTemplate(booking.guest.name, booking.listing.title, formatDate(existing.checkIn), formatDate(existing.checkOut), booking.cancellationReason || undefined)).catch((emailError) => {
+                console.warn("Booking cancellation email failed", {
+                    operation: "deleteBooking",
+                    message: emailError instanceof Error ? emailError.message : emailError
+                });
+            });
+            // notify host (if available)
+            if (listing && listing.host && listing.host.email) {
+                const hostEmail = listing.host.email;
+                const hostName = listing.host.name || 'Host';
+                const hostTemplate = `Hi ${hostName},\n\nThe booking for '${listing.title}' has been cancelled by the guest.\n\nCheck-in: ${formatDate(existing.checkIn)}\nCheck-out: ${formatDate(existing.checkOut)}\nReason: ${booking.cancellationReason || 'No reason provided'}\n\nPlease review your bookings.`;
+                void (0, email_js_1.sendEmail)(hostEmail, 'Booking cancelled - action required', hostTemplate).catch(() => { });
+            }
+            return;
+        }
+        // Hosts should keep the booking record so both sides can continue to see the reason.
+        if (req.role === 'HOST') {
+            res.status(403).json({ message: "Hosts can cancel bookings, but cannot delete them" });
+            return;
+        }
+        // Otherwise forbidden
+        res.status(403).json({ message: "You can only cancel your own bookings" });
     }
     catch (error) {
         next({ error, operation: "deleteBooking" });
@@ -342,15 +486,30 @@ const getUserBookings = async (req, res, next) => {
                             id: true,
                             title: true,
                             location: true,
-                            pricePerNight: true
+                            pricePerNight: true,
+                            photos: {
+                                select: {
+                                    url: true
+                                }
+                            }
                         }
                     }
                 }
             }),
             prisma_1.default.booking.count({ where: { guestId: userId } })
         ]);
+        const bookingsWithOptimized = bookings.map(booking => ({
+            ...booking,
+            listing: booking.listing ? {
+                ...booking.listing,
+                photos: booking.listing.photos.map(photo => ({
+                    url: photo.url,
+                    optimizedUrl: (0, cloudinary_js_1.getOptimizedUrl)(photo.url, 80, 60)
+                }))
+            } : booking.listing
+        }));
         res.json({
-            data: bookings,
+            data: bookingsWithOptimized,
             meta: {
                 total,
                 page,

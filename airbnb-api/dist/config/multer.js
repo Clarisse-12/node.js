@@ -11,12 +11,11 @@ const storage = multer_1.default.memoryStorage();
 // File filter — only allow image files
 // This runs before the file is stored, rejecting non-image uploads early
 function fileFilter(req, file, cb) {
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true); // accept the file
+    if (file.mimetype.startsWith("image/")) {
+        cb(null, true);
     }
     else {
-        cb(new Error("Only jpeg, png, webp allowed"));
+        cb(new Error("Only image files are allowed"));
     }
 }
 const upload = (0, multer_1.default)({

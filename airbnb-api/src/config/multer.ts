@@ -12,12 +12,10 @@ function fileFilter(
   file: Express.Multer.File,
   cb: multer.FileFilterCallback
 ) {
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true); // accept the file
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
   } else {
-    cb(new Error("Only jpeg, png, webp allowed"));
+    cb(new Error("Only image files are allowed"));
   }
 }
 

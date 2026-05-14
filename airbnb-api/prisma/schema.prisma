@@ -9,6 +9,7 @@ datasource db {
 enum Role {
   HOST
   GUEST
+  ADMIN
 }
 
 enum ListingType {
@@ -57,6 +58,7 @@ model User {
   phone            String
   password         String
   role             Role      @default(GUEST)
+  isActive         Boolean   @default(true)
   avatar           String?
   avatarPublicId   String?
   bio              String?
@@ -83,6 +85,7 @@ model Booking {
   checkOut   DateTime
   totalPrice Float?
   status     BookingStatus @default(PENDING)
+  cancellationReason String?
   createdAt  DateTime      @default(now())
   guestId    String
   listingId  String

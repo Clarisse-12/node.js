@@ -3,8 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireGuest = exports.requireHost = exports.authenticate = void 0;
+exports.requireAdmin = exports.requireGuest = exports.requireHost = exports.authenticate = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const prisma_1 = __importDefault(require("../config/prisma"));
 const getJwtSecret = () => {
     const secret = process.env["JWT_SECRET"];
     if (!secret) {
@@ -31,9 +32,24 @@ const authenticate = (req, res, next) => {
             res.status(401).json({ message: "Invalid or expired token" });
             return;
         }
-        req.userId = decoded.userId;
-        req.role = decoded.role;
-        next();
+        prisma_1.default.user.findUnique({
+            where: { id: decoded.userId },
+            select: { id: true, isActive: true }
+        }).then((user) => {
+            if (!user) {
+                res.status(401).json({ message: "Invalid or expired token" });
+                return;
+            }
+            if (!user.isActive) {
+                res.status(403).json({ message: "Account disabled" });
+                return;
+            }
+            req.userId = decoded.userId;
+            req.role = decoded.role;
+            next();
+        }).catch(() => {
+            res.status(401).json({ message: "Invalid or expired token" });
+        });
     }
     catch {
         res.status(401).json({ message: "Invalid or expired token" });
@@ -56,3 +72,11 @@ const requireGuest = (req, res, next) => {
     next();
 };
 exports.requireGuest = requireGuest;
+const requireAdmin = (req, res, next) => {
+    if (req.role !== "ADMIN") {
+        res.status(403).json({ message: "Forbidden" });
+        return;
+    }
+    next();
+};
+exports.requireAdmin = requireAdmin;
